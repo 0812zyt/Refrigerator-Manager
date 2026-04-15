@@ -21,7 +21,7 @@ router = APIRouter(
 # ----------------------------------------------------------------
 @router.get("", response_model=List[InventoryResponse])
 def get_inventory(
-    user_id: Optional[int] = Query(None, description="依使用者篩選")
+    user_id: Optional[str] = Query(None, description="依使用者篩選")
 ):
     """
     取得庫存列表
@@ -37,7 +37,7 @@ def get_inventory(
 
 @router.get("/search")
 def search_inventory(
-    user_id: int = Query(..., description="使用者 ID"),
+    user_id: str = Query(..., description="使用者 ID"),
     keyword: str = Query(..., description="搜尋關鍵字")
 ):
     """

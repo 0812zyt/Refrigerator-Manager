@@ -23,7 +23,7 @@ def get_users():
 
 
 @router.get("/{user_id}", response_model=UserResponse)
-def get_user(user_id: int):
+def get_user(user_id: str):
     """取得單一使用者"""
     query_module = DBQueryModule()
     user = query_module.query_user_by_id(user_id)

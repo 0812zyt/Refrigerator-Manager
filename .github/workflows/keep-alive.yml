@@ -1,0 +1,14 @@
+name: Ping Render API (Keep Alive)
+
+on:
+  schedule:
+    - cron: '*/14 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping API Health Endpoint
+        run: |
+          curl -s https://smartfridge-f6b6.onrender.com/health || true

@@ -11,4 +11,4 @@ class UserResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")  # 忽略 Supabase 回傳的多餘欄位
 
     user_id: str
-    name: str
+    username: str

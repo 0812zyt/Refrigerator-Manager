@@ -1,0 +1,7 @@
+fastapi==0.115.0
+uvicorn[standard]==0.30.0
+supabase==2.28.3
+python-dotenv==1.0.1
+apscheduler==3.10.4
+pydantic==2.13.0
+httpx==0.27.0          # 預留：未來呼叫影像辨識模組外部 API 時使用（TODO ❹）

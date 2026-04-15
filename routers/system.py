@@ -85,6 +85,7 @@ def recognize_food(request: RecognizeRequest):
     """
     影像辨識 API
     對應報告 3-2-1：前端 -> 辨識模組 (Recognition API)
+    """
 
     # TODO: 真正實作時，這裡會把 request.image_base64 送給影像辨識模組
     # 這裡先套用組長給的回傳格式進行 Mock

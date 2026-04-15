@@ -110,9 +110,10 @@ async def fsm_middleware(request: Request, call_next):
     """
     path = request.url.path
 
-    # 允許通過的路徑：根路徑、API 文件、系統控制 API
+    # 允許通過的路徑：根路徑、健康檢查、API 文件、系統控制 API
     allowed_prefixes = [
         "/",
+        "/health",
         "/docs",
         "/redoc",
         "/openapi.json",
@@ -163,3 +164,8 @@ def root():
         "system_state": system.get_system_state(),
         "docs": "/docs"
     }
+
+@app.get("/health", tags=["Root"])
+def health_check():
+    """單純的健康檢查，供外部服務（如 Render）定時呼叫防休眠"""
+    return {"status": "ok"}

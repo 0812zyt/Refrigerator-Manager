@@ -6,7 +6,7 @@
 
 from fastapi import APIRouter, HTTPException, Query
 from database import get_db
-from schemas.ingredient import IngredientResponse
+from schemas.ingredient import IngredientResponse, IngredientCreate
 from services.db_query_module import DBQueryModule
 from typing import List, Optional
 
@@ -24,6 +24,16 @@ def get_ingredients(category_id: Optional[int] = Query(None, description="依分
     """
     query_module = DBQueryModule()
     return query_module.query_all_ingredients(category_id)
+
+
+@router.post("", response_model=IngredientResponse, status_code=201)
+def create_ingredient(data: IngredientCreate):
+    """新增自訂食材範本（找不到現有食材時使用）"""
+    db = get_db()
+    result = db.table("ingredients").insert(data.model_dump(exclude_none=True)).execute()
+    if not result.data:
+        raise HTTPException(status_code=500, detail="Failed to create ingredient")
+    return result.data[0]
 
 
 # 注意：/search/{keyword} 必須定義在 /{ingredient_id} 之前，否則 "search" 會被當成 ID 解析導致 422 錯誤

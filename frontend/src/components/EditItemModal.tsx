@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { updateInventory } from '../api/client';
 import type { InventoryItem } from '../api/types';
 import { overlay, modalStyle, modalTitle, cancelBtn, saveBtn, fieldStyle, labelStyle, inputStyle } from '../pages/DashboardPage';
@@ -9,16 +9,54 @@ interface Props {
   onUpdated: () => void;
 }
 
+function photoKey(id: number, type: 'product' | 'expire') {
+  return `fridge_photo_${type}_${id}`;
+}
+
+function loadPhoto(id: number, type: 'product' | 'expire'): string | null {
+  return localStorage.getItem(photoKey(id, type));
+}
+
+function savePhoto(id: number, type: 'product' | 'expire', dataUrl: string | null) {
+  if (dataUrl) localStorage.setItem(photoKey(id, type), dataUrl);
+  else localStorage.removeItem(photoKey(id, type));
+}
+
+const panelStyle: React.CSSProperties = {
+  flex: 1, border: '2px dashed #e2e8f0', borderRadius: 12,
+  display: 'flex', flexDirection: 'column', alignItems: 'center',
+  justifyContent: 'center', padding: 12, cursor: 'pointer',
+  background: '#f8fafc', minHeight: 120, position: 'relative', overflow: 'hidden',
+};
+
 export default function EditItemModal({ item, onClose, onUpdated }: Props) {
+  const id = item.inventory_id;
   const [quantity, setQuantity]     = useState(String(item.quantity));
   const [expireDate, setExpireDate] = useState(item.expire_date);
   const [saving, setSaving]         = useState(false);
   const [error, setError]           = useState('');
+  const [productPhoto, setProductPhoto] = useState<string | null>(() => loadPhoto(id, 'product'));
+  const [expirePhoto, setExpirePhoto]   = useState<string | null>(() => loadPhoto(id, 'expire'));
+
+  const productRef = useRef<HTMLInputElement>(null);
+  const expireRef  = useRef<HTMLInputElement>(null);
+
+  const handleFile = (file: File | null, type: 'product' | 'expire') => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      const dataUrl = e.target!.result as string;
+      savePhoto(id, type, dataUrl);
+      if (type === 'product') setProductPhoto(dataUrl);
+      else setExpirePhoto(dataUrl);
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleSave = async () => {
     setError(''); setSaving(true);
     try {
-      await updateInventory(item.inventory_id, {
+      await updateInventory(id, {
         quantity: Math.max(1, Number(quantity) || 1),
         expire_date: expireDate,
         custom_expire: true,
@@ -31,17 +69,61 @@ export default function EditItemModal({ item, onClose, onUpdated }: Props) {
 
   return (
     <div style={overlay} onClick={onClose}>
-      <div style={modalStyle} onClick={e => e.stopPropagation()}>
+      <div style={{ ...modalStyle, maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
         <h2 style={modalTitle}>✏️ 編輯食材</h2>
 
-        <div style={{ background:'#f0f9ff', borderRadius:10, padding:'8px 14px', marginBottom:16, fontSize:14, color:'#0369a1' }}>
+        <div style={{ background: '#f0f9ff', borderRadius: 10, padding: '8px 14px', marginBottom: 16, fontSize: 14, color: '#0369a1' }}>
           {item.ingredient_name ?? `食材 #${item.ingredient_id}`}
+        </div>
+
+        {/* 照片區 */}
+        <div style={{ display: 'flex', gap: 10, marginBottom: 18 }}>
+          {/* 商品照片 */}
+          <div style={panelStyle} onClick={() => productRef.current?.click()}>
+            {productPhoto ? (
+              <>
+                <img src={productPhoto} alt="商品" style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0, borderRadius: 10 }} />
+                <button onClick={e => { e.stopPropagation(); savePhoto(id, 'product', null); setProductPhoto(null); }}
+                  style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.5)', border: 'none', color: '#fff', borderRadius: '50%', width: 22, height: 22, cursor: 'pointer', fontSize: 12 }}>✕</button>
+              </>
+            ) : (
+              <>
+                <span style={{ fontSize: 28, color: '#94a3b8' }}>📷</span>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginTop: 4 }}>商品照片</div>
+                <div style={{ fontSize: 11, color: '#94a3b8' }}>拍照自動辨識名稱</div>
+              </>
+            )}
+            <input ref={productRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => handleFile(e.target.files?.[0] ?? null, 'product')} />
+          </div>
+
+          {/* 有效期限照片 */}
+          <div style={panelStyle} onClick={() => expireRef.current?.click()}>
+            {expirePhoto ? (
+              <>
+                <img src={expirePhoto} alt="有效期限" style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0, borderRadius: 10 }} />
+                <button onClick={e => { e.stopPropagation(); savePhoto(id, 'expire', null); setExpirePhoto(null); }}
+                  style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.5)', border: 'none', color: '#fff', borderRadius: '50%', width: 22, height: 22, cursor: 'pointer', fontSize: 12 }}>✕</button>
+              </>
+            ) : (
+              <>
+                <span style={{ fontSize: 28, color: '#94a3b8' }}>📅</span>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginTop: 4 }}>有效期限</div>
+                <div style={{ fontSize: 11, color: '#94a3b8' }}>拍日期對照填寫</div>
+              </>
+            )}
+            <input ref={expireRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => handleFile(e.target.files?.[0] ?? null, 'expire')} />
+          </div>
         </div>
 
         <div style={fieldStyle}>
           <label style={labelStyle}>數量</label>
-          <input style={{ ...inputStyle, width:100 }} type="number" min={1} value={quantity}
-            onChange={e => setQuantity(e.target.value)} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button onClick={() => setQuantity(q => String(Math.max(1, Number(q) - 1)))}
+              style={{ width: 32, height: 32, borderRadius: 8, border: '1.5px solid #e2e8f0', background: '#f8fafc', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
+            <span style={{ fontSize: 16, fontWeight: 700, minWidth: 24, textAlign: 'center' }}>{quantity}</span>
+            <button onClick={() => setQuantity(q => String(Number(q) + 1))}
+              style={{ width: 32, height: 32, borderRadius: 8, border: '1.5px solid #e2e8f0', background: '#f8fafc', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>＋</button>
+          </div>
         </div>
 
         <div style={fieldStyle}>
@@ -50,9 +132,9 @@ export default function EditItemModal({ item, onClose, onUpdated }: Props) {
             onChange={e => setExpireDate(e.target.value)} />
         </div>
 
-        {error && <p style={{ color:'#ef4444', fontSize:13, marginBottom:8 }}>{error}</p>}
+        {error && <p style={{ color: '#ef4444', fontSize: 13, marginBottom: 8 }}>{error}</p>}
 
-        <div style={{ display:'flex', gap:10, marginTop:8 }}>
+        <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
           <button style={cancelBtn} onClick={onClose}>取消</button>
           <button style={{ ...saveBtn, opacity: saving ? 0.7 : 1 }} onClick={handleSave} disabled={saving}>
             {saving ? '儲存中…' : '儲存變更'}

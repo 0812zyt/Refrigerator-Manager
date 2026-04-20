@@ -27,18 +27,30 @@ const panelStyle: React.CSSProperties = {
   background: '#f8fafc', minHeight: 120, position: 'relative', overflow: 'hidden',
 };
 
-function PhotoPickerSheet({ onAlbum, onCamera, onClose }: { onAlbum: () => void; onCamera: () => void; onClose: () => void }) {
-  const btnStyle: React.CSSProperties = {
-    width: '100%', padding: '16px', border: 'none', background: 'none',
+function PhotoPickerSheet({ onFile, onClose }: {
+  onFile: (file: File) => void;
+  onClose: () => void;
+}) {
+  const rowStyle: React.CSSProperties = {
+    display: 'block', width: '100%', padding: '16px', border: 'none', background: 'none',
     fontSize: 16, cursor: 'pointer', color: '#1e293b', borderBottom: '1px solid #f1f5f9',
+    textAlign: 'center',
   };
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 400, display: 'flex', alignItems: 'flex-end' }} onClick={onClose}>
       <div style={{ width: '100%', background: '#fff', borderRadius: '16px 16px 0 0', paddingBottom: 32 }} onClick={e => e.stopPropagation()}>
         <div style={{ padding: '12px 16px 4px', textAlign: 'center', fontSize: 13, color: '#94a3b8' }}>選擇照片來源</div>
-        <button style={btnStyle} onClick={onAlbum}>從相冊中選擇</button>
-        <button style={btnStyle} onClick={onCamera}>使用相機</button>
-        <button style={{ ...btnStyle, color: '#ef4444', borderBottom: 'none' }} onClick={onClose}>取消</button>
+        <label style={rowStyle}>
+          從相冊中選擇
+          <input type="file" accept="image/*" style={{ display: 'none' }}
+            onChange={e => { const f = e.target.files?.[0]; if (f) { onFile(f); onClose(); } e.target.value = ''; }} />
+        </label>
+        <label style={rowStyle}>
+          使用相機
+          <input type="file" accept="image/*" capture="environment" style={{ display: 'none' }}
+            onChange={e => { const f = e.target.files?.[0]; if (f) { onFile(f); onClose(); } e.target.value = ''; }} />
+        </label>
+        <button style={{ ...rowStyle, color: '#ef4444', borderBottom: 'none' }} onClick={onClose}>取消</button>
       </div>
     </div>
   );
@@ -54,8 +66,6 @@ export default function EditItemModal({ item, onClose, onUpdated }: Props) {
   const [expirePhoto, setExpirePhoto]   = useState<string | null>(() => loadPhoto(id, 'expire'));
   const [picker, setPicker] = useState<null | 'product' | 'expire'>(null);
 
-  const albumRef  = useRef<HTMLInputElement>(null);
-  const cameraRef = useRef<HTMLInputElement>(null);
   const activeType = useRef<'product' | 'expire'>('product');
 
   const handleFile = (file: File | null, type: 'product' | 'expire') => {
@@ -155,16 +165,9 @@ export default function EditItemModal({ item, onClose, onUpdated }: Props) {
         </div>
       </div>
 
-      {/* 隱藏 file input */}
-      <input ref={albumRef} type="file" accept="image/*" style={{ display: 'none' }}
-        onChange={e => { handleFile(e.target.files?.[0] ?? null, activeType.current); e.target.value = ''; }} />
-      <input ref={cameraRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }}
-        onChange={e => { handleFile(e.target.files?.[0] ?? null, activeType.current); e.target.value = ''; }} />
-
       {picker && (
         <PhotoPickerSheet
-          onAlbum={() => { setPicker(null); albumRef.current?.click(); }}
-          onCamera={() => { setPicker(null); cameraRef.current?.click(); }}
+          onFile={(file) => handleFile(file, activeType.current)}
           onClose={() => setPicker(null)}
         />
       )}

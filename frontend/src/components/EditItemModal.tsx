@@ -12,11 +12,9 @@ interface Props {
 function photoKey(id: number, type: 'product' | 'expire') {
   return `fridge_photo_${type}_${id}`;
 }
-
-function loadPhoto(id: number, type: 'product' | 'expire'): string | null {
+function loadPhoto(id: number, type: 'product' | 'expire') {
   return localStorage.getItem(photoKey(id, type));
 }
-
 function savePhoto(id: number, type: 'product' | 'expire', dataUrl: string | null) {
   if (dataUrl) localStorage.setItem(photoKey(id, type), dataUrl);
   else localStorage.removeItem(photoKey(id, type));
@@ -29,6 +27,23 @@ const panelStyle: React.CSSProperties = {
   background: '#f8fafc', minHeight: 120, position: 'relative', overflow: 'hidden',
 };
 
+function PhotoPickerSheet({ onAlbum, onCamera, onClose }: { onAlbum: () => void; onCamera: () => void; onClose: () => void }) {
+  const btnStyle: React.CSSProperties = {
+    width: '100%', padding: '16px', border: 'none', background: 'none',
+    fontSize: 16, cursor: 'pointer', color: '#1e293b', borderBottom: '1px solid #f1f5f9',
+  };
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 400, display: 'flex', alignItems: 'flex-end' }} onClick={onClose}>
+      <div style={{ width: '100%', background: '#fff', borderRadius: '16px 16px 0 0', paddingBottom: 32 }} onClick={e => e.stopPropagation()}>
+        <div style={{ padding: '12px 16px 4px', textAlign: 'center', fontSize: 13, color: '#94a3b8' }}>選擇照片來源</div>
+        <button style={btnStyle} onClick={onAlbum}>從相冊中選擇</button>
+        <button style={btnStyle} onClick={onCamera}>使用相機</button>
+        <button style={{ ...btnStyle, color: '#ef4444', borderBottom: 'none' }} onClick={onClose}>取消</button>
+      </div>
+    </div>
+  );
+}
+
 export default function EditItemModal({ item, onClose, onUpdated }: Props) {
   const id = item.inventory_id;
   const [quantity, setQuantity]     = useState(String(item.quantity));
@@ -37,9 +52,11 @@ export default function EditItemModal({ item, onClose, onUpdated }: Props) {
   const [error, setError]           = useState('');
   const [productPhoto, setProductPhoto] = useState<string | null>(() => loadPhoto(id, 'product'));
   const [expirePhoto, setExpirePhoto]   = useState<string | null>(() => loadPhoto(id, 'expire'));
+  const [picker, setPicker] = useState<null | 'product' | 'expire'>(null);
 
-  const productRef = useRef<HTMLInputElement>(null);
-  const expireRef  = useRef<HTMLInputElement>(null);
+  const albumRef  = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const activeType = useRef<'product' | 'expire'>('product');
 
   const handleFile = (file: File | null, type: 'product' | 'expire') => {
     if (!file) return;
@@ -51,6 +68,17 @@ export default function EditItemModal({ item, onClose, onUpdated }: Props) {
       else setExpirePhoto(dataUrl);
     };
     reader.readAsDataURL(file);
+  };
+
+  const openPicker = (type: 'product' | 'expire') => {
+    activeType.current = type;
+    setPicker(type);
+  };
+
+  const removePhoto = (type: 'product' | 'expire') => {
+    savePhoto(id, type, null);
+    if (type === 'product') setProductPhoto(null);
+    else setExpirePhoto(null);
   };
 
   const handleSave = async () => {
@@ -67,80 +95,79 @@ export default function EditItemModal({ item, onClose, onUpdated }: Props) {
     } finally { setSaving(false); }
   };
 
+  const PhotoPanel = ({ type, photo, label, sub }: { type: 'product' | 'expire'; photo: string | null; label: string; sub: string }) => (
+    <div style={panelStyle} onClick={() => openPicker(type)}>
+      {photo ? (
+        <>
+          <img src={photo} alt={label} style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0, borderRadius: 10 }} />
+          <button onClick={e => { e.stopPropagation(); removePhoto(type); }}
+            style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.5)', border: 'none', color: '#fff', borderRadius: '50%', width: 22, height: 22, cursor: 'pointer', fontSize: 12 }}>✕</button>
+        </>
+      ) : (
+        <>
+          <span style={{ fontSize: 28, color: '#94a3b8' }}>{type === 'product' ? '📷' : '📅'}</span>
+          <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginTop: 4 }}>{label}</div>
+          <div style={{ fontSize: 11, color: '#94a3b8' }}>{sub}</div>
+        </>
+      )}
+    </div>
+  );
+
   return (
-    <div style={overlay} onClick={onClose}>
-      <div style={{ ...modalStyle, maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
-        <h2 style={modalTitle}>✏️ 編輯食材</h2>
+    <>
+      <div style={overlay} onClick={onClose}>
+        <div style={{ ...modalStyle, maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+          <h2 style={modalTitle}>✏️ 編輯食材</h2>
 
-        <div style={{ background: '#f0f9ff', borderRadius: 10, padding: '8px 14px', marginBottom: 16, fontSize: 14, color: '#0369a1' }}>
-          {item.ingredient_name ?? `食材 #${item.ingredient_id}`}
-        </div>
-
-        {/* 照片區 */}
-        <div style={{ display: 'flex', gap: 10, marginBottom: 18 }}>
-          {/* 商品照片 */}
-          <div style={panelStyle} onClick={() => productRef.current?.click()}>
-            {productPhoto ? (
-              <>
-                <img src={productPhoto} alt="商品" style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0, borderRadius: 10 }} />
-                <button onClick={e => { e.stopPropagation(); savePhoto(id, 'product', null); setProductPhoto(null); }}
-                  style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.5)', border: 'none', color: '#fff', borderRadius: '50%', width: 22, height: 22, cursor: 'pointer', fontSize: 12 }}>✕</button>
-              </>
-            ) : (
-              <>
-                <span style={{ fontSize: 28, color: '#94a3b8' }}>📷</span>
-                <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginTop: 4 }}>商品照片</div>
-                <div style={{ fontSize: 11, color: '#94a3b8' }}>拍照自動辨識名稱</div>
-              </>
-            )}
-            <input ref={productRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => handleFile(e.target.files?.[0] ?? null, 'product')} />
+          <div style={{ background: '#f0f9ff', borderRadius: 10, padding: '8px 14px', marginBottom: 16, fontSize: 14, color: '#0369a1' }}>
+            {item.ingredient_name ?? `食材 #${item.ingredient_id}`}
           </div>
 
-          {/* 有效期限照片 */}
-          <div style={panelStyle} onClick={() => expireRef.current?.click()}>
-            {expirePhoto ? (
-              <>
-                <img src={expirePhoto} alt="有效期限" style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0, borderRadius: 10 }} />
-                <button onClick={e => { e.stopPropagation(); savePhoto(id, 'expire', null); setExpirePhoto(null); }}
-                  style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.5)', border: 'none', color: '#fff', borderRadius: '50%', width: 22, height: 22, cursor: 'pointer', fontSize: 12 }}>✕</button>
-              </>
-            ) : (
-              <>
-                <span style={{ fontSize: 28, color: '#94a3b8' }}>📅</span>
-                <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginTop: 4 }}>有效期限</div>
-                <div style={{ fontSize: 11, color: '#94a3b8' }}>拍日期對照填寫</div>
-              </>
-            )}
-            <input ref={expireRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => handleFile(e.target.files?.[0] ?? null, 'expire')} />
+          <div style={{ display: 'flex', gap: 10, marginBottom: 18 }}>
+            <PhotoPanel type="product" photo={productPhoto} label="商品照片" sub="拍照自動辨識名稱" />
+            <PhotoPanel type="expire" photo={expirePhoto} label="有效期限" sub="拍日期對照填寫" />
           </div>
-        </div>
 
-        <div style={fieldStyle}>
-          <label style={labelStyle}>數量</label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <button onClick={() => setQuantity(q => String(Math.max(1, Number(q) - 1)))}
-              style={{ width: 32, height: 32, borderRadius: 8, border: '1.5px solid #e2e8f0', background: '#f8fafc', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
-            <span style={{ fontSize: 16, fontWeight: 700, minWidth: 24, textAlign: 'center' }}>{quantity}</span>
-            <button onClick={() => setQuantity(q => String(Number(q) + 1))}
-              style={{ width: 32, height: 32, borderRadius: 8, border: '1.5px solid #e2e8f0', background: '#f8fafc', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>＋</button>
+          <div style={fieldStyle}>
+            <label style={labelStyle}>數量</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <button onClick={() => setQuantity(q => String(Math.max(1, Number(q) - 1)))}
+                style={{ width: 32, height: 32, borderRadius: 8, border: '1.5px solid #e2e8f0', background: '#f8fafc', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
+              <span style={{ fontSize: 16, fontWeight: 700, minWidth: 24, textAlign: 'center' }}>{quantity}</span>
+              <button onClick={() => setQuantity(q => String(Number(q) + 1))}
+                style={{ width: 32, height: 32, borderRadius: 8, border: '1.5px solid #e2e8f0', background: '#f8fafc', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>＋</button>
+            </div>
           </div>
-        </div>
 
-        <div style={fieldStyle}>
-          <label style={labelStyle}>到期日</label>
-          <input style={inputStyle} type="date" value={expireDate}
-            onChange={e => setExpireDate(e.target.value)} />
-        </div>
+          <div style={fieldStyle}>
+            <label style={labelStyle}>到期日</label>
+            <input style={inputStyle} type="date" value={expireDate} onChange={e => setExpireDate(e.target.value)} />
+          </div>
 
-        {error && <p style={{ color: '#ef4444', fontSize: 13, marginBottom: 8 }}>{error}</p>}
+          {error && <p style={{ color: '#ef4444', fontSize: 13, marginBottom: 8 }}>{error}</p>}
 
-        <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
-          <button style={cancelBtn} onClick={onClose}>取消</button>
-          <button style={{ ...saveBtn, opacity: saving ? 0.7 : 1 }} onClick={handleSave} disabled={saving}>
-            {saving ? '儲存中…' : '儲存變更'}
-          </button>
+          <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+            <button style={cancelBtn} onClick={onClose}>取消</button>
+            <button style={{ ...saveBtn, opacity: saving ? 0.7 : 1 }} onClick={handleSave} disabled={saving}>
+              {saving ? '儲存中…' : '儲存變更'}
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+
+      {/* 隱藏 file input */}
+      <input ref={albumRef} type="file" accept="image/*" style={{ display: 'none' }}
+        onChange={e => { handleFile(e.target.files?.[0] ?? null, activeType.current); e.target.value = ''; }} />
+      <input ref={cameraRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }}
+        onChange={e => { handleFile(e.target.files?.[0] ?? null, activeType.current); e.target.value = ''; }} />
+
+      {picker && (
+        <PhotoPickerSheet
+          onAlbum={() => { setPicker(null); albumRef.current?.click(); }}
+          onCamera={() => { setPicker(null); cameraRef.current?.click(); }}
+          onClose={() => setPicker(null)}
+        />
+      )}
+    </>
   );
 }

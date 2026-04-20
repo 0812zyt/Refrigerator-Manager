@@ -10,6 +10,7 @@
 
 from database import get_db
 from datetime import date, timedelta, datetime
+import uuid
 
 
 class DBUpdateModule:
@@ -137,6 +138,20 @@ class DBUpdateModule:
         self._log_operation("DELETE", "user_inventory", {"inventory_id": inventory_id})
 
         return result
+
+    # ----------------------------------------------------------------
+    # B.2 資料寫入操作（建立使用者）
+    # ----------------------------------------------------------------
+    def create_user(self, username: str):
+        """建立新使用者，user_id 自動產生 UUID"""
+        user_id = str(uuid.uuid4())
+        result = (
+            self.db.table("users")
+            .insert({"user_id": user_id, "username": username})
+            .execute()
+        )
+        self._log_operation("CREATE", "users", {"user_id": user_id, "username": username})
+        return result.data[0] if result.data else None
 
     # ----------------------------------------------------------------
     # B.3 日誌記錄

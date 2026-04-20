@@ -5,11 +5,10 @@
 """
 
 from fastapi import APIRouter, HTTPException
-from schemas.user import UserResponse, UserCreate
+from schemas.user import UserCreate, UserResponse
 from services.db_query_module import DBQueryModule
-from database import get_db
+from services.db_update_module import DBUpdateModule
 from typing import List
-import uuid
 
 router = APIRouter(
     prefix="/api/v1/users",
@@ -25,17 +24,13 @@ def get_users():
 
 
 @router.post("", response_model=UserResponse, status_code=201)
-def create_user(data: UserCreate):
-    """
-    建立使用者（暫時版，不與 Supabase Auth 連動）
-    之後改為真正的註冊/登入流程。
-    """
-    db = get_db()
-    new_id = str(uuid.uuid4())
-    result = db.table("users").insert({"user_id": new_id, "username": data.username}).execute()
-    if not result.data:
-        raise HTTPException(status_code=500, detail="Failed to create user")
-    return result.data[0]
+def create_user(body: UserCreate):
+    """建立新使用者"""
+    update_module = DBUpdateModule()
+    user = update_module.create_user(body.username)
+    if not user:
+        raise HTTPException(status_code=500, detail="建立使用者失敗")
+    return user
 
 
 @router.get("/{user_id}", response_model=UserResponse)

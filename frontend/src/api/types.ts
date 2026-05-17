@@ -37,6 +37,7 @@ export interface InventoryCreate {
 }
 
 export interface InventoryUpdate {
+  ingredient_id?: number;
   quantity?: number;
   expire_date?: string;
   custom_expire?: boolean;

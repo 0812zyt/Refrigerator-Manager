@@ -19,7 +19,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
-from routers import categories, ingredients, inventory, system
+from routers import categories, ingredients, inventory, system, push
 from routers import users
 from scheduler import start_scheduler, stop_scheduler
 
@@ -113,6 +113,7 @@ async def fsm_middleware(request: Request, call_next):
         "/redoc",
         "/openapi.json",
         "/api/v1/system",
+        "/api/v1/push",
     ]
 
     # 檢查是否為允許通過的路徑
@@ -147,6 +148,7 @@ app.include_router(categories.router)
 app.include_router(ingredients.router)
 app.include_router(inventory.router)
 app.include_router(system.router)
+app.include_router(push.router)
 
 
 @app.get("/", tags=["Root"])

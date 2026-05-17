@@ -1,7 +1,9 @@
-import { useRef, useState } from 'react';
-import { updateInventory } from '../api/client';
-import type { InventoryItem } from '../api/types';
+import { useEffect, useRef, useState } from 'react';
+import { updateInventory, getCategories, getIngredients, createIngredient } from '../api/client';
+import type { InventoryItem, Category, Ingredient } from '../api/types';
 import { overlay, modalStyle, modalTitle, cancelBtn, saveBtn, fieldStyle, labelStyle, inputStyle } from '../pages/DashboardPage';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 
 interface Props {
   item: InventoryItem;
@@ -21,21 +23,60 @@ function savePhoto(id: number, type: 'product' | 'expire', dataUrl: string | nul
 }
 
 const panelStyle: React.CSSProperties = {
-  flex: 1, border: '2px dashed #e2e8f0', borderRadius: 12,
+  border: '2px dashed #e2e8f0', borderRadius: 12,
   display: 'flex', flexDirection: 'column', alignItems: 'center',
-  justifyContent: 'center', padding: 12, cursor: 'pointer',
-  background: '#f8fafc', minHeight: 120, position: 'relative', overflow: 'hidden',
+  justifyContent: 'center', cursor: 'pointer',
+  background: '#f8fafc', position: 'relative', overflow: 'hidden',
+  width: 180, height: 180, margin: '0 auto',
 };
 
-function PhotoPickerSheet({ onFile, onClose }: {
+const FOOD_STICKERS = [
+  '🍎','🍊','🍋','🍇','🍓','🫐','🍑','🍒','🥭','🍍',
+  '🥦','🥕','🌽','🍆','🧅','🧄','🥔','🍅','🥑','🫛',
+  '🥩','🍗','🥚','🧀','🥛','🧈','🐟','🦐','🦑','🥓',
+  '🍚','🍞','🧇','🥞','🍜','🥗','🫙','🧃','🥤','🍵',
+];
+
+function emojiToDataUrl(emoji: string): string {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128; canvas.height = 128;
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = '#f8fafc';
+  ctx.fillRect(0, 0, 128, 128);
+  ctx.font = '80px serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(emoji, 64, 68);
+  return canvas.toDataURL('image/png');
+}
+
+function PhotoPickerSheet({ onFile, onSticker, onClose }: {
   onFile: (file: File) => void;
+  onSticker: (dataUrl: string) => void;
   onClose: () => void;
 }) {
+  const [showStickers, setShowStickers] = useState(false);
   const rowStyle: React.CSSProperties = {
     display: 'block', width: '100%', padding: '16px', border: 'none', background: 'none',
     fontSize: 16, cursor: 'pointer', color: '#1e293b', borderBottom: '1px solid #f1f5f9',
     textAlign: 'center',
   };
+  if (showStickers) return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 400, display: 'flex', alignItems: 'flex-end' }} onClick={onClose}>
+      <div style={{ width: '100%', background: '#fff', borderRadius: '16px 16px 0 0', paddingBottom: 32 }} onClick={e => e.stopPropagation()}>
+        <div style={{ padding: '12px 16px 8px', textAlign: 'center', fontSize: 13, color: '#94a3b8' }}>選擇貼紙</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 4, padding: '8px 16px 16px' }}>
+          {FOOD_STICKERS.map(emoji => (
+            <button key={emoji} onClick={() => { onSticker(emojiToDataUrl(emoji)); onClose(); }}
+              style={{ fontSize: 28, background: 'none', border: 'none', cursor: 'pointer', padding: 4, borderRadius: 8, lineHeight: 1 }}>
+              {emoji}
+            </button>
+          ))}
+        </div>
+        <button style={{ ...rowStyle, color: '#ef4444', borderBottom: 'none' }} onClick={onClose}>取消</button>
+      </div>
+    </div>
+  );
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 400, display: 'flex', alignItems: 'flex-end' }} onClick={onClose}>
       <div style={{ width: '100%', background: '#fff', borderRadius: '16px 16px 0 0', paddingBottom: 32 }} onClick={e => e.stopPropagation()}>
@@ -50,6 +91,7 @@ function PhotoPickerSheet({ onFile, onClose }: {
           <input type="file" accept="image/*" capture="environment" style={{ display: 'none' }}
             onChange={e => { const f = e.target.files?.[0]; if (f) { onFile(f); onClose(); } e.target.value = ''; }} />
         </label>
+        <button style={rowStyle} onClick={() => setShowStickers(true)}>使用貼紙</button>
         <button style={{ ...rowStyle, color: '#ef4444', borderBottom: 'none' }} onClick={onClose}>取消</button>
       </div>
     </div>
@@ -63,19 +105,40 @@ export default function EditItemModal({ item, onClose, onUpdated }: Props) {
   const [saving, setSaving]         = useState(false);
   const [error, setError]           = useState('');
   const [productPhoto, setProductPhoto] = useState<string | null>(() => loadPhoto(id, 'product'));
-  const [expirePhoto, setExpirePhoto]   = useState<string | null>(() => loadPhoto(id, 'expire'));
   const [picker, setPicker] = useState<null | 'product' | 'expire'>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [allIngredients, setAllIngredients] = useState<Ingredient[]>([]);
+  const [ingredients, setIngredients] = useState<Ingredient[]>([]);
+  const [nameInput, setNameInput] = useState(item.ingredient_name ?? '');
+  const [selectedIng, setSelectedIng] = useState<Ingredient | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const skipClearRef = useRef(false);
 
   const activeType = useRef<'product' | 'expire'>('product');
+
+  useEffect(() => {
+    getCategories().then(setCategories).catch(() => {});
+    getIngredients().then(all => {
+      setAllIngredients(all);
+      setIngredients(all);
+      const match = all.find(i => i.ingredient_id === item.ingredient_id);
+      if (match) { skipClearRef.current = true; setSelectedIng(match); }
+    }).catch(() => {});
+  }, [item.ingredient_id]);
+
+  useEffect(() => {
+    if (skipClearRef.current) { skipClearRef.current = false; return; }
+    if (!nameInput.trim()) { setIngredients(allIngredients); setSelectedIng(null); return; }
+    setIngredients(allIngredients.filter(i => i.name.toLowerCase().includes(nameInput.toLowerCase())));
+    setSelectedIng(null);
+  }, [nameInput, allIngredients]);
 
   const handleFile = (file: File | null, type: 'product' | 'expire') => {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = e => {
       const dataUrl = e.target!.result as string;
-      savePhoto(id, type, dataUrl);
       if (type === 'product') setProductPhoto(dataUrl);
-      else setExpirePhoto(dataUrl);
     };
     reader.readAsDataURL(file);
   };
@@ -86,26 +149,34 @@ export default function EditItemModal({ item, onClose, onUpdated }: Props) {
   };
 
   const removePhoto = (type: 'product' | 'expire') => {
-    savePhoto(id, type, null);
     if (type === 'product') setProductPhoto(null);
-    else setExpirePhoto(null);
   };
 
   const handleSave = async () => {
+    if (!nameInput.trim()) { setError('請輸入食材名稱'); return; }
     setError(''); setSaving(true);
     try {
+      let ing = selectedIng
+        ?? allIngredients.find(i => i.name.toLowerCase() === nameInput.trim().toLowerCase())
+        ?? null;
+      if (!ing) {
+        const catEntry = categories.find(c => c.category_name === selectedCategory);
+        ing = await createIngredient({ name: nameInput.trim(), category_id: catEntry?.category_id });
+      }
       await updateInventory(id, {
+        ingredient_id: ing.ingredient_id,
         quantity: Math.max(1, Number(quantity) || 1),
         expire_date: expireDate,
         custom_expire: true,
       });
+      savePhoto(id, 'product', productPhoto);
       onUpdated(); onClose();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : '更新失敗');
     } finally { setSaving(false); }
   };
 
-  const PhotoPanel = ({ type, photo, label, sub }: { type: 'product' | 'expire'; photo: string | null; label: string; sub: string }) => (
+  const PhotoPanel = ({ type, photo, label }: { type: 'product' | 'expire'; photo: string | null; label: string }) => (
     <div style={panelStyle} onClick={() => openPicker(type)}>
       {photo ? (
         <>
@@ -114,11 +185,7 @@ export default function EditItemModal({ item, onClose, onUpdated }: Props) {
             style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.5)', border: 'none', color: '#fff', borderRadius: '50%', width: 22, height: 22, cursor: 'pointer', fontSize: 12 }}>✕</button>
         </>
       ) : (
-        <>
-          <span style={{ fontSize: 28, color: '#94a3b8' }}>{type === 'product' ? '📷' : '📅'}</span>
-          <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginTop: 4 }}>{label}</div>
-          <div style={{ fontSize: 11, color: '#94a3b8' }}>{sub}</div>
-        </>
+        <span style={{ fontSize: 36, color: '#94a3b8' }}>📷</span>
       )}
     </div>
   );
@@ -129,13 +196,32 @@ export default function EditItemModal({ item, onClose, onUpdated }: Props) {
         <div style={{ ...modalStyle, maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
           <h2 style={modalTitle}>✏️ 編輯食材</h2>
 
-          <div style={{ background: '#f0f9ff', borderRadius: 10, padding: '8px 14px', marginBottom: 16, fontSize: 14, color: '#0369a1' }}>
-            {item.ingredient_name ?? `食材 #${item.ingredient_id}`}
+          <div style={{ display: 'flex', gap: 10, marginBottom: 18 }}>
+            <PhotoPanel type="product" photo={productPhoto} label="商品照片" />
           </div>
 
-          <div style={{ display: 'flex', gap: 10, marginBottom: 18 }}>
-            <PhotoPanel type="product" photo={productPhoto} label="商品照片" sub="拍照自動辨識名稱" />
-            <PhotoPanel type="expire" photo={expirePhoto} label="有效期限" sub="拍日期對照填寫" />
+          <div style={fieldStyle}>
+            <label style={labelStyle}>食材名稱 *</label>
+            <input style={inputStyle} placeholder="輸入關鍵字搜尋或手動輸入…" value={nameInput}
+              onChange={e => setNameInput(e.target.value)} />
+            {nameInput && !selectedIng && ingredients.length > 0 && (
+              <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, marginTop: 4, maxHeight: 140, overflowY: 'auto', background: '#fff', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
+                {ingredients.slice(0, 6).map(ing => (
+                  <div key={ing.ingredient_id} onClick={() => { skipClearRef.current = true; setSelectedIng(ing); setNameInput(ing.name); setIngredients(allIngredients); }}
+                    style={{ padding: '8px 12px', cursor: 'pointer', fontSize: 14, borderBottom: '1px solid #f1f5f9' }}>
+                    {ing.name}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div style={fieldStyle}>
+            <label style={labelStyle}>分類</label>
+            <select style={{ ...inputStyle, appearance: 'auto' }} value={selectedCategory} onChange={e => setSelectedCategory(e.target.value)}>
+              <option value="">全部分類</option>
+              {categories.map(c => <option key={c.category_id} value={c.category_name}>{c.category_name}</option>)}
+            </select>
           </div>
 
           <div style={fieldStyle}>
@@ -151,7 +237,13 @@ export default function EditItemModal({ item, onClose, onUpdated }: Props) {
 
           <div style={fieldStyle}>
             <label style={labelStyle}>到期日</label>
-            <input style={inputStyle} type="date" value={expireDate} onChange={e => setExpireDate(e.target.value)} />
+            <DatePicker
+              selected={expireDate ? new Date(expireDate) : null}
+              onChange={(date: Date | null) => setExpireDate(date ? date.toISOString().slice(0, 10) : '')}
+              dateFormat="yyyy-MM-dd"
+              placeholderText="yyyy-mm-dd"
+              customInput={<input style={inputStyle} />}
+            />
           </div>
 
           {error && <p style={{ color: '#ef4444', fontSize: 13, marginBottom: 8 }}>{error}</p>}
@@ -168,6 +260,7 @@ export default function EditItemModal({ item, onClose, onUpdated }: Props) {
       {picker && (
         <PhotoPickerSheet
           onFile={(file) => handleFile(file, activeType.current)}
+          onSticker={(dataUrl) => { setProductPhoto(dataUrl); setPicker(null); }}
           onClose={() => setPicker(null)}
         />
       )}

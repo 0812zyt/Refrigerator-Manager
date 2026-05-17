@@ -115,8 +115,59 @@ class ExpiryModule:
 
     def _send_push_notification(self, expired_items: list, urgent_items: list):
         """
-        TODO: ❸ 需與組員討論推播服務方案後實作
-        可能的方案：LINE Notify、Firebase Cloud Messaging (FCM)、或其他推播服務
-        此方法應根據傳入的 expired_items 和 urgent_items 觸發推播 API
+        透過 Web Push（VAPID）將到期警示推播到使用者裝置。
         """
-        pass
+        if not expired_items and not urgent_items:
+            return
+
+        from services.push_service import PushService
+        push = PushService()
+
+        # 依 user_id 彙整項目
+        user_data: dict = {}
+        for item in expired_items:
+            uid = item.get("user_id")
+            if uid:
+                user_data.setdefault(uid, {"expired": [], "urgent": []})
+                user_data[uid]["expired"].append(item.get("ingredient_name") or "食材")
+        for item in urgent_items:
+            uid = item.get("user_id")
+            if uid:
+                user_data.setdefault(uid, {"expired": [], "urgent": []})
+                user_data[uid]["urgent"].append(item.get("ingredient_name") or "食材")
+
+        # 取出所有訂閱，以 user_id 為 key
+        subs_result = self.db.table("push_subscriptions").select("*").execute()
+        sub_by_user: dict = {}
+        for s in subs_result.data:
+            sub_by_user.setdefault(s["user_id"], []).append(s)
+
+        for uid, data in user_data.items():
+            subs = sub_by_user.get(uid, [])
+            if not subs:
+                continue
+
+            parts = []
+            if data["expired"]:
+                names = "、".join(data["expired"][:3])
+                parts.append(f"{names} 已過期")
+            if data["urgent"]:
+                names = "、".join(data["urgent"][:3])
+                parts.append(f"{names} 即將到期")
+
+            body = "；".join(parts)
+
+            for sub in subs:
+                ok = push.send(
+                    subscription_info={
+                        "endpoint": sub["endpoint"],
+                        "keys": {"p256dh": sub["p256dh"], "auth": sub["auth"]},
+                    },
+                    title="🧊 冰箱管家提醒",
+                    body=body,
+                )
+                # 訂閱失效時清除記錄
+                if not ok:
+                    self.db.table("push_subscriptions").delete().eq(
+                        "endpoint", sub["endpoint"]
+                    ).execute()

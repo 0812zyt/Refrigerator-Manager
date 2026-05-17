@@ -12,9 +12,11 @@ load_dotenv()
 SUPABASE_URL: str = os.getenv("SUPABASE_URL", "")
 SUPABASE_KEY: str = os.getenv("SUPABASE_KEY", "")
 
-# 推播服務設定 (TODO ❸)
-FCM_SERVER_KEY: str = os.getenv("FCM_SERVER_KEY", "")
-LINE_NOTIFY_TOKEN: str = os.getenv("LINE_NOTIFY_TOKEN", "")
+# Web Push 推播設定（VAPID）
+# 執行 python generate_vapid.py 產生金鑰後貼入 .env
+VAPID_PUBLIC_KEY: str  = os.getenv("VAPID_PUBLIC_KEY", "")
+VAPID_PRIVATE_KEY: str = os.getenv("VAPID_PRIVATE_KEY", "")
+VAPID_EMAIL: str       = os.getenv("VAPID_EMAIL", "admin@example.com")
 
 # 驗證必要的環境變數
 if not SUPABASE_URL or not SUPABASE_KEY:

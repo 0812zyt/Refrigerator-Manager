@@ -32,6 +32,7 @@ class InventoryUpdate(BaseModel):
     修改庫存請求格式
     只需傳入要修改的欄位即可。
     """
+    ingredient_id: Optional[int] = None
     quantity: Optional[int] = None
     expire_date: Optional[date] = None
     custom_expire: Optional[bool] = None

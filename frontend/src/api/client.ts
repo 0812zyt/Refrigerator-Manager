@@ -3,7 +3,9 @@ import type {
   InventoryCreate, InventoryUpdate, SystemStatus
 } from './types';
 
-const BASE = 'https://smartfridge-f6b6.onrender.com/api/v1';
+const BASE = import.meta.env.DEV
+  ? '/api/v1'
+  : 'https://smartfridge-f6b6.onrender.com/api/v1';
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
@@ -52,6 +54,16 @@ export const updateInventory = (id: number, data: InventoryUpdate) =>
 
 export const deleteInventory = (id: number) =>
   request<{ message: string }>(`/inventory/${id}`, { method: 'DELETE' });
+
+// Push Notifications
+export const getPushVapidKey = () =>
+  request<{ public_key: string }>('/push/vapid-key');
+
+export const subscribePush = (data: { user_id: string; endpoint: string; keys: { p256dh: string; auth: string } }) =>
+  request<{ status: string }>('/push/subscribe', { method: 'POST', body: JSON.stringify(data) });
+
+export const unsubscribePush = (endpoint: string) =>
+  request<{ status: string }>(`/push/unsubscribe?endpoint=${encodeURIComponent(endpoint)}`, { method: 'DELETE' });
 
 // System
 export const getSystemStatus = () =>

@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { getCategories, getIngredients, createInventory, createIngredient } from '../api/client';
 import type { Category, Ingredient } from '../api/types';
 import { overlay, modalStyle, modalTitle, cancelBtn, saveBtn, fieldStyle, labelStyle, inputStyle } from '../pages/DashboardPage';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 
 interface Props {
   userId: string;
@@ -11,21 +13,60 @@ interface Props {
 }
 
 const panelStyle: React.CSSProperties = {
-  flex: 1, border: '2px dashed #e2e8f0', borderRadius: 12,
+  border: '2px dashed #e2e8f0', borderRadius: 12,
   display: 'flex', flexDirection: 'column', alignItems: 'center',
-  justifyContent: 'center', padding: 12, cursor: 'pointer',
-  background: '#f8fafc', minHeight: 120, position: 'relative', overflow: 'hidden',
+  justifyContent: 'center', cursor: 'pointer',
+  background: '#f8fafc', position: 'relative', overflow: 'hidden',
+  width: 180, height: 180, margin: '0 auto',
 };
 
-function PhotoPickerSheet({ onFile, onClose }: {
+const FOOD_STICKERS = [
+  '🍎','🍊','🍋','🍇','🍓','🫐','🍑','🍒','🥭','🍍',
+  '🥦','🥕','🌽','🍆','🧅','🧄','🥔','🍅','🥑','🫛',
+  '🥩','🍗','🥚','🧀','🥛','🧈','🐟','🦐','🦑','🥓',
+  '🍚','🍞','🧇','🥞','🍜','🥗','🫙','🧃','🥤','🍵',
+];
+
+function emojiToDataUrl(emoji: string): string {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128; canvas.height = 128;
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = '#f8fafc';
+  ctx.fillRect(0, 0, 128, 128);
+  ctx.font = '80px serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(emoji, 64, 68);
+  return canvas.toDataURL('image/png');
+}
+
+function PhotoPickerSheet({ onFile, onSticker, onClose }: {
   onFile: (file: File, source: 'album' | 'camera') => void;
+  onSticker: (dataUrl: string) => void;
   onClose: () => void;
 }) {
+  const [showStickers, setShowStickers] = useState(false);
   const rowStyle: React.CSSProperties = {
     display: 'block', width: '100%', padding: '16px', border: 'none', background: 'none',
     fontSize: 16, cursor: 'pointer', color: '#1e293b', borderBottom: '1px solid #f1f5f9',
     textAlign: 'center',
   };
+  if (showStickers) return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 400, display: 'flex', alignItems: 'flex-end' }} onClick={onClose}>
+      <div style={{ width: '100%', background: '#fff', borderRadius: '16px 16px 0 0', paddingBottom: 32 }} onClick={e => e.stopPropagation()}>
+        <div style={{ padding: '12px 16px 8px', textAlign: 'center', fontSize: 13, color: '#94a3b8' }}>選擇貼紙</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 4, padding: '8px 16px 16px' }}>
+          {FOOD_STICKERS.map(emoji => (
+            <button key={emoji} onClick={() => { onSticker(emojiToDataUrl(emoji)); onClose(); }}
+              style={{ fontSize: 28, background: 'none', border: 'none', cursor: 'pointer', padding: 4, borderRadius: 8, lineHeight: 1 }}>
+              {emoji}
+            </button>
+          ))}
+        </div>
+        <button style={{ ...rowStyle, color: '#ef4444', borderBottom: 'none' }} onClick={onClose}>取消</button>
+      </div>
+    </div>
+  );
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 400, display: 'flex', alignItems: 'flex-end' }} onClick={onClose}>
       <div style={{ width: '100%', background: '#fff', borderRadius: '16px 16px 0 0', paddingBottom: 32 }} onClick={e => e.stopPropagation()}>
@@ -40,6 +81,7 @@ function PhotoPickerSheet({ onFile, onClose }: {
           <input type="file" accept="image/*" capture="environment" style={{ display: 'none' }}
             onChange={e => { const f = e.target.files?.[0]; if (f) { onFile(f, 'camera'); onClose(); } e.target.value = ''; }} />
         </label>
+        <button style={rowStyle} onClick={() => setShowStickers(true)}>使用貼紙</button>
         <button style={{ ...rowStyle, color: '#ef4444', borderBottom: 'none' }} onClick={onClose}>取消</button>
       </div>
     </div>
@@ -140,7 +182,7 @@ export default function AddItemModal({ userId, prefill, onClose, onAdded }: Prop
   const catMap: Record<number, string> = {};
   categories.forEach(c => { catMap[c.category_id] = c.category_name; });
 
-  const PhotoPanel = ({ type, photo, label, sub }: { type: 'product' | 'expire'; photo: string | null; label: string; sub: string }) => (
+  const PhotoPanel = ({ type, photo, label }: { type: 'product' | 'expire'; photo: string | null; label: string }) => (
     <div style={panelStyle} onClick={() => openPicker(type)}>
       {photo ? (
         <>
@@ -149,11 +191,7 @@ export default function AddItemModal({ userId, prefill, onClose, onAdded }: Prop
             style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.5)', border: 'none', color: '#fff', borderRadius: '50%', width: 22, height: 22, cursor: 'pointer', fontSize: 12 }}>✕</button>
         </>
       ) : (
-        <>
-          <span style={{ fontSize: 28, color: '#94a3b8' }}>{type === 'product' ? '📷' : '📅'}</span>
-          <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginTop: 4 }}>{label}</div>
-          <div style={{ fontSize: 11, color: '#94a3b8' }}>{sub}</div>
-        </>
+        <span style={{ fontSize: 36, color: '#94a3b8' }}>{type === 'product' ? '📷' : '📅'}</span>
       )}
     </div>
   );
@@ -165,8 +203,7 @@ export default function AddItemModal({ userId, prefill, onClose, onAdded }: Prop
           <h2 style={modalTitle}>＋ 新增食材</h2>
 
           <div style={{ display: 'flex', gap: 10, marginBottom: 18 }}>
-            <PhotoPanel type="product" photo={productPhoto} label="商品照片" sub="拍照自動辨識名稱" />
-            <PhotoPanel type="expire" photo={expirePhoto} label="有效期限" sub="拍日期對照填寫" />
+            <PhotoPanel type="product" photo={productPhoto} label="商品照片" />
           </div>
 
           <div style={fieldStyle}>
@@ -219,8 +256,13 @@ export default function AddItemModal({ userId, prefill, onClose, onAdded }: Prop
 
           <div style={fieldStyle}>
             <label style={labelStyle}>到期日 *</label>
-            <input style={inputStyle} type="date" value={form.expiry}
-              onChange={e => setForm({ ...form, expiry: e.target.value })} />
+            <DatePicker
+              selected={form.expiry ? new Date(form.expiry) : null}
+              onChange={(date: Date | null) => setForm({ ...form, expiry: date ? date.toISOString().slice(0, 10) : '' })}
+              dateFormat="yyyy-MM-dd"
+              placeholderText="yyyy-mm-dd"
+              customInput={<input style={inputStyle} />}
+            />
           </div>
 
           {error && <p style={{ color:'#ef4444', fontSize:13, marginBottom:8 }}>{error}</p>}
@@ -237,6 +279,7 @@ export default function AddItemModal({ userId, prefill, onClose, onAdded }: Prop
       {picker && (
         <PhotoPickerSheet
           onFile={(file) => handleFile(file, activeType.current)}
+          onSticker={(dataUrl) => { activeType.current === 'product' ? setProductPhoto(dataUrl) : setExpirePhoto(dataUrl); setPicker(null); }}
           onClose={() => setPicker(null)}
         />
       )}

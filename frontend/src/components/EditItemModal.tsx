@@ -156,15 +156,22 @@ export default function EditItemModal({ item, onClose, onUpdated }: Props) {
     if (!nameInput.trim()) { setError('請輸入食材名稱'); return; }
     setError(''); setSaving(true);
     try {
-      let ing = selectedIng
-        ?? allIngredients.find(i => i.name.toLowerCase() === nameInput.trim().toLowerCase())
-        ?? null;
-      if (!ing) {
-        const catEntry = categories.find(c => c.category_name === selectedCategory);
-        ing = await createIngredient({ name: nameInput.trim(), category_id: catEntry?.category_id });
+      const nameUnchanged = nameInput.trim().toLowerCase() === (item.ingredient_name ?? '').toLowerCase();
+      let ingredientId: number;
+      if (nameUnchanged) {
+        ingredientId = item.ingredient_id;
+      } else {
+        let ing = selectedIng
+          ?? allIngredients.find(i => i.name.toLowerCase() === nameInput.trim().toLowerCase())
+          ?? null;
+        if (!ing) {
+          const catEntry = categories.find(c => c.category_name === selectedCategory);
+          ing = await createIngredient({ name: nameInput.trim(), category_id: catEntry?.category_id });
+        }
+        ingredientId = ing.ingredient_id;
       }
       await updateInventory(id, {
-        ingredient_id: ing.ingredient_id,
+        ingredient_id: ingredientId,
         quantity: Math.max(1, Number(quantity) || 1),
         expire_date: expireDate,
         custom_expire: true,

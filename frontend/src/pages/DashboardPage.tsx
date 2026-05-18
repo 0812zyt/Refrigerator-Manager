@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useTheme } from '../context/ThemeContext';
 import { getInventory, deleteInventory, getCategories, getIngredients, getPushVapidKey, subscribePush, unsubscribePush } from '../api/client';
 import type { InventoryItem, Category, Ingredient, User } from '../api/types';
-import { useTheme } from '../context/ThemeContext';
 import AddChoiceModal from '../components/AddChoiceModal';
 import AddItemModal from '../components/AddItemModal';
 import ImageRecognizeModal from '../components/ImageRecognizeModal';
@@ -91,14 +91,34 @@ function RecipeView({ items }: { items: EnrichedItem[] }) {
   );
 }
 
-// ── Settings View ─────────────────────────────────────────────────
-function SettingsView({ user, onLogout }: { user: User; onLogout: () => void }) {
-  const { theme, setTheme } = useTheme();
+interface NotifPrefs {
+  daysBefore: number;
+  notifTime: string;
+  dailyReminder: boolean;
+}
+function loadNotifPrefs(): NotifPrefs {
+  try { return JSON.parse(localStorage.getItem('fridge_notif_prefs') ?? '{}'); } catch { return {} as NotifPrefs; }
+}
+function saveNotifPrefs(prefs: NotifPrefs) {
+  localStorage.setItem('fridge_notif_prefs', JSON.stringify(prefs));
+}
+
+// ── Notification Settings Sub-page ────────────────────────────────
+function NotifSettingsPage({ user, onBack }: { user: User; onBack: () => void }) {
   const [notifEnabled, setNotifEnabled] = useState(false);
   const [notifLoading, setNotifLoading] = useState(false);
-  const [notifHint, setNotifHint] = useState('');
+  const [notifHint, setNotifHint]       = useState('');
+  const saved = loadNotifPrefs();
+  const [daysBefore, setDaysBefore]     = useState<number>(saved.daysBefore ?? 1);
+  const [notifTime, setNotifTime]       = useState<string>(saved.notifTime ?? '08:00');
+  const [dailyReminder, setDailyReminder] = useState<boolean>(saved.dailyReminder ?? false);
 
-  // 初始化：檢查是否已有有效訂閱
+  const updatePrefs = (patch: Partial<NotifPrefs>) => {
+    const next = { daysBefore, notifTime, dailyReminder, ...patch };
+    setDaysBefore(next.daysBefore); setNotifTime(next.notifTime); setDailyReminder(next.dailyReminder);
+    saveNotifPrefs(next);
+  };
+
   useEffect(() => {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
     navigator.serviceWorker.ready.then(reg =>
@@ -114,31 +134,23 @@ function SettingsView({ user, onLogout }: { user: User; onLogout: () => void }) 
     try {
       const reg = await navigator.serviceWorker.ready;
       const existing = await reg.pushManager.getSubscription();
-
       if (existing) {
         await existing.unsubscribe();
         await unsubscribePush(existing.endpoint);
-        setNotifEnabled(false);
-        setNotifHint('通知已關閉');
+        setNotifEnabled(false); setNotifHint('通知已關閉');
       } else {
         const permission = await Notification.requestPermission();
         if (permission !== 'granted') { setNotifHint('請在瀏覽器允許通知權限'); setNotifLoading(false); return; }
-
         const { public_key } = await getPushVapidKey();
         if (!public_key) { setNotifHint('伺服器尚未設定推播金鑰'); setNotifLoading(false); return; }
-
-        // base64url → Uint8Array（瀏覽器 PushManager 要求）
         const padding = '='.repeat((4 - public_key.length % 4) % 4);
         const base64 = (public_key + padding).replace(/-/g, '+').replace(/_/g, '/');
-        const raw = atob(base64);
-        const key = new Uint8Array(raw.length);
+        const raw = atob(base64); const key = new Uint8Array(raw.length);
         for (let i = 0; i < raw.length; i++) key[i] = raw.charCodeAt(i);
-
         const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
         const json = sub.toJSON() as { endpoint: string; keys: { p256dh: string; auth: string } };
         await subscribePush({ user_id: user.user_id, endpoint: json.endpoint, keys: json.keys });
-        setNotifEnabled(true);
-        setNotifHint('通知已開啟 🎉');
+        setNotifEnabled(true); setNotifHint('通知已開啟 🎉');
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -146,6 +158,81 @@ function SettingsView({ user, onLogout }: { user: User; onLogout: () => void }) 
     }
     setNotifLoading(false);
   };
+
+  const toggle = (on: boolean) => (
+    <span style={{ width:40, height:22, borderRadius:11, background: on ? '#6366f1' : 'var(--border)', display:'inline-flex', alignItems:'center', padding:'0 3px', transition:'background 0.2s', flexShrink:0 }}>
+      <span style={{ width:16, height:16, borderRadius:'50%', background:'#fff', boxShadow:'0 1px 3px rgba(0,0,0,0.3)', transform: on ? 'translateX(18px)' : 'translateX(0)', transition:'transform 0.2s', display:'block' }} />
+    </span>
+  );
+
+  return (
+    <div>
+      {/* 返回標題列 */}
+      <div style={{ display:'flex', alignItems:'center', marginBottom:24, position:'relative' }}>
+        <button onClick={onBack} style={{ width:34, height:34, borderRadius:10, border:'1px solid var(--border)', background:'var(--surface)', cursor:'pointer', fontSize:16, display:'flex', alignItems:'center', justifyContent:'center' }}>←</button>
+        <h2 style={{ fontSize:17, fontWeight:800, color:'var(--text)', margin:0, position:'absolute', left:'50%', transform:'translateX(-50%)' }}>通知設定</h2>
+      </div>
+
+      {/* 推播開關 */}
+      <div style={{ background:'var(--surface)', borderRadius:16, overflow:'hidden', boxShadow:'var(--shadow)', marginBottom:16 }}>
+        <button onClick={notifLoading ? undefined : handleNotifToggle}
+          style={{ display:'flex', alignItems:'center', gap:14, width:'100%', padding:'16px 18px', background:'none', border:'none', cursor: notifLoading ? 'wait' : 'pointer', textAlign:'left' }}>
+          <span style={{ fontSize:18, width:24, textAlign:'center' }}>🔔</span>
+          <span style={{ flex:1 }}>
+            <span style={{ fontSize:14, color:'var(--text)', display:'block', fontWeight:600 }}>到期提醒推播</span>
+            {notifHint && <span style={{ fontSize:11, color: notifEnabled ? '#22c55e' : '#94a3b8' }}>{notifHint}</span>}
+          </span>
+          {toggle(notifEnabled)}
+        </button>
+      </div>
+
+      {/* 詳細設定（開啟後才顯示）*/}
+      {notifEnabled && (
+        <>
+          {/* 提前幾天通知 */}
+          <div style={{ background:'var(--surface)', borderRadius:16, boxShadow:'var(--shadow)', marginBottom:16, padding:'16px 18px' }}>
+            <div style={{ fontSize:13, fontWeight:700, color:'var(--text-2)', marginBottom:12 }}>提前幾天通知</div>
+            <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+              {[0,1,2,3].map(d => (
+                <button key={d} onClick={() => updatePrefs({ daysBefore: d })}
+                  style={{ padding:'7px 18px', borderRadius:20, border:'none', fontSize:13, fontWeight:600, cursor:'pointer', transition:'all 0.15s',
+                    background: daysBefore === d ? 'linear-gradient(135deg,#6366f1,#8b5cf6)' : 'var(--surface-2)',
+                    color: daysBefore === d ? '#fff' : 'var(--text-2)' }}>
+                  {d === 0 ? '當天' : `${d} 天前`}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 通知時間 */}
+          <div style={{ background:'var(--surface)', borderRadius:16, boxShadow:'var(--shadow)', marginBottom:16, padding:'16px 18px' }}>
+            <div style={{ fontSize:13, fontWeight:700, color:'var(--text-2)', marginBottom:12 }}>通知時間</div>
+            <input type="time" value={notifTime} onChange={e => updatePrefs({ notifTime: e.target.value })}
+              style={{ padding:'10px 14px', borderRadius:10, border:'1.5px solid var(--border)', background:'var(--surface-2)', color:'var(--text)', fontSize:15, outline:'none', width:'100%', boxSizing:'border-box' as const }} />
+          </div>
+
+          {/* 每日提醒 */}
+          <div style={{ background:'var(--surface)', borderRadius:16, boxShadow:'var(--shadow)', marginBottom:16 }}>
+            <button onClick={() => updatePrefs({ dailyReminder: !dailyReminder })}
+              style={{ display:'flex', alignItems:'center', gap:14, width:'100%', padding:'16px 18px', background:'none', border:'none', cursor:'pointer', textAlign:'left' }}>
+              <span style={{ fontSize:18, width:24, textAlign:'center' }}>📅</span>
+              <span style={{ flex:1 }}>
+                <span style={{ fontSize:14, color:'var(--text)', display:'block', fontWeight:600 }}>每日提醒</span>
+                <span style={{ fontSize:11, color:'var(--text-3)' }}>每天固定時間提醒冰箱狀態</span>
+              </span>
+              {toggle(dailyReminder)}
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Settings View ─────────────────────────────────────────────────
+function SettingsView({ user, onLogout }: { user: User; onLogout: () => void }) {
+  const { theme, setTheme } = useTheme();
+  const [subPage, setSubPage] = useState<null | 'notif'>(null);
 
   const row = (icon: string, label: string, right?: React.ReactNode, onClick?: () => void) => (
     <button onClick={onClick} style={{ display:'flex', alignItems:'center', gap:14, width:'100%', padding:'14px 18px', background:'none', border:'none', cursor: onClick ? 'pointer' : 'default', textAlign:'left' }}>
@@ -161,6 +248,8 @@ function SettingsView({ user, onLogout }: { user: User; onLogout: () => void }) 
     </span>
   );
 
+  if (subPage === 'notif') return <NotifSettingsPage user={user} onBack={() => setSubPage(null)} />;
+
   return (
     <div>
       {/* Profile card */}
@@ -170,27 +259,13 @@ function SettingsView({ user, onLogout }: { user: User; onLogout: () => void }) 
         </div>
         <div>
           <div style={{ fontWeight:700, fontSize:16, color:'var(--text)' }}>{user.username}</div>
-          <div style={{ fontSize:12, color:'var(--text-3)', marginTop:2 }}>冰箱管家</div>
         </div>
       </div>
 
-      {/* Settings groups */}
       <div style={{ background:'var(--surface)', borderRadius:16, overflow:'hidden', boxShadow:'var(--shadow)', marginBottom:16 }}>
-        <p style={{ fontSize:11, fontWeight:700, color:'var(--text-3)', padding:'12px 18px 4px', textTransform:'uppercase', letterSpacing:'0.05em' }}>外觀</p>
         {row(theme === 'dark' ? '☀️' : '🌙', '深色模式', toggle(theme === 'dark'), () => setTheme(theme === 'dark' ? 'light' : 'dark'))}
-      </div>
-
-      <div style={{ background:'var(--surface)', borderRadius:16, overflow:'hidden', boxShadow:'var(--shadow)', marginBottom:16 }}>
-        <p style={{ fontSize:11, fontWeight:700, color:'var(--text-3)', padding:'12px 18px 4px', textTransform:'uppercase', letterSpacing:'0.05em' }}>通知</p>
-        <button onClick={notifLoading ? undefined : handleNotifToggle}
-          style={{ display:'flex', alignItems:'center', gap:14, width:'100%', padding:'14px 18px', background:'none', border:'none', cursor: notifLoading ? 'wait' : 'pointer', textAlign:'left' }}>
-          <span style={{ fontSize:18, width:24, textAlign:'center' }}>🔔</span>
-          <span style={{ flex:1 }}>
-            <span style={{ fontSize:14, color:'var(--text)', display:'block' }}>到期提醒推播</span>
-            {notifHint && <span style={{ fontSize:11, color: notifEnabled ? '#22c55e' : '#94a3b8' }}>{notifHint}</span>}
-          </span>
-          {toggle(notifEnabled)}
-        </button>
+        <div style={{ height:1, background:'var(--border)', margin:'0 18px' }} />
+        {row('🔔', '通知', <span style={{ fontSize:13, color:'var(--text-3)' }}>›</span>, () => setSubPage('notif'))}
       </div>
 
       <div style={{ background:'var(--surface)', borderRadius:16, overflow:'hidden', boxShadow:'var(--shadow)' }}>
@@ -200,9 +275,11 @@ function SettingsView({ user, onLogout }: { user: User; onLogout: () => void }) 
   );
 }
 
+
 export default function DashboardPage({ user, onLogout }: Props) {
   const [items, setItems]           = useState<EnrichedItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [allIngredients, setAllIngredients] = useState<Ingredient[]>([]);
   const [loading, setLoading]       = useState(true);
   const [activeCategory, setActiveCategory] = useState('全部');
   const [searchTerm, setSearchTerm] = useState('');
@@ -238,6 +315,7 @@ export default function DashboardPage({ user, onLogout }: Props) {
     try {
       const [inv, cats, ings] = await Promise.all([getInventory(user.user_id), getCategories(), getIngredients()]);
       setCategories(cats);
+      setAllIngredients(ings);
       const ingMap: Record<number, Ingredient> = {};
       ings.forEach(i => { ingMap[i.ingredient_id] = i; });
       const catMap: Record<number, string> = {};
@@ -413,8 +491,8 @@ export default function DashboardPage({ user, onLogout }: Props) {
       {/* Modals */}
       {modal === 'choice' && <AddChoiceModal onManual={() => { setPrefill(null); setModal('manual'); }} onCamera={() => setModal('image')} onClose={() => setModal(null)} />}
       {modal === 'image' && <ImageRecognizeModal onClose={() => setModal(null)} onFill={d => { setPrefill(d); setModal('manual'); }} />}
-      {modal === 'manual' && <AddItemModal userId={user.user_id} prefill={prefill} onClose={() => { setModal(null); setPrefill(null); }} onAdded={loadData} />}
-      {modal === 'edit' && editItem && <EditItemModal item={editItem} onClose={() => { setModal(null); setEditItem(null); }} onUpdated={loadData} />}
+      {modal === 'manual' && <AddItemModal userId={user.user_id} prefill={prefill} cachedCategories={categories} cachedIngredients={allIngredients} onClose={() => { setModal(null); setPrefill(null); }} onAdded={loadData} />}
+      {modal === 'edit' && editItem && <EditItemModal item={editItem} cachedCategories={categories} cachedIngredients={allIngredients} onClose={() => { setModal(null); setEditItem(null); }} onUpdated={loadData} />}
 
       {/* ── Bottom Nav ───────────────────────────────────────────── */}
       <nav style={{ position:'fixed', bottom:0, left:0, right:0, height:64, background:'var(--header-bg)', borderTop:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'space-around', zIndex:100, boxShadow:'0 -2px 12px rgba(0,0,0,0.06)', padding:'0 16px' }}>

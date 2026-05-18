@@ -6,7 +6,9 @@ import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 
 interface Props {
-  item: InventoryItem;
+  item: InventoryItem & { categoryName?: string };
+  cachedCategories?: Category[];
+  cachedIngredients?: Ingredient[];
   onClose: () => void;
   onUpdated: () => void;
 }
@@ -98,7 +100,7 @@ function PhotoPickerSheet({ onFile, onSticker, onClose }: {
   );
 }
 
-export default function EditItemModal({ item, onClose, onUpdated }: Props) {
+export default function EditItemModal({ item, cachedCategories, cachedIngredients, onClose, onUpdated }: Props) {
   const id = item.inventory_id;
   const [quantity, setQuantity]     = useState(String(item.quantity));
   const [expireDate, setExpireDate] = useState(item.expire_date);
@@ -106,23 +108,32 @@ export default function EditItemModal({ item, onClose, onUpdated }: Props) {
   const [error, setError]           = useState('');
   const [productPhoto, setProductPhoto] = useState<string | null>(() => loadPhoto(id, 'product'));
   const [picker, setPicker] = useState<null | 'product' | 'expire'>(null);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [allIngredients, setAllIngredients] = useState<Ingredient[]>([]);
-  const [ingredients, setIngredients] = useState<Ingredient[]>([]);
+  const [categories, setCategories] = useState<Category[]>(cachedCategories ?? []);
+  const [allIngredients, setAllIngredients] = useState<Ingredient[]>(cachedIngredients ?? []);
+  const [ingredients, setIngredients] = useState<Ingredient[]>(cachedIngredients ?? []);
   const [nameInput, setNameInput] = useState(item.ingredient_name ?? '');
   const [selectedIng, setSelectedIng] = useState<Ingredient | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState(item.categoryName ?? '');
   const skipClearRef = useRef(false);
 
   const activeType = useRef<'product' | 'expire'>('product');
 
   useEffect(() => {
-    getCategories().then(setCategories).catch(() => {});
-    getIngredients().then(all => {
+    const catsPromise = cachedCategories ? Promise.resolve(cachedCategories) : getCategories();
+    const ingsPromise = cachedIngredients ? Promise.resolve(cachedIngredients) : getIngredients();
+    Promise.all([catsPromise, ingsPromise]).then(([cats, all]) => {
+      setCategories(cats);
       setAllIngredients(all);
       setIngredients(all);
       const match = all.find(i => i.ingredient_id === item.ingredient_id);
-      if (match) { skipClearRef.current = true; setSelectedIng(match); }
+      if (match) {
+        skipClearRef.current = true;
+        setSelectedIng(match);
+        if (match.category_id != null) {
+          const cat = cats.find(c => c.category_id === match.category_id);
+          if (cat) setSelectedCategory(cat.category_name);
+        }
+      }
     }).catch(() => {});
   }, [item.ingredient_id]);
 
@@ -226,7 +237,7 @@ export default function EditItemModal({ item, onClose, onUpdated }: Props) {
           <div style={fieldStyle}>
             <label style={labelStyle}>分類</label>
             <select style={{ ...inputStyle, appearance: 'auto' }} value={selectedCategory} onChange={e => setSelectedCategory(e.target.value)}>
-              <option value="">全部分類</option>
+              <option value="">尚未分類</option>
               {categories.map(c => <option key={c.category_id} value={c.category_name}>{c.category_name}</option>)}
             </select>
           </div>

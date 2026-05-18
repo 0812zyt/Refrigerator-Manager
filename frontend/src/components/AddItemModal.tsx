@@ -8,6 +8,8 @@ import 'react-datepicker/dist/react-datepicker.css';
 interface Props {
   userId: string;
   prefill?: { name?: string; category?: string } | null;
+  cachedCategories?: Category[];
+  cachedIngredients?: Ingredient[];
   onClose: () => void;
   onAdded: () => void;
 }
@@ -88,10 +90,10 @@ function PhotoPickerSheet({ onFile, onSticker, onClose }: {
   );
 }
 
-export default function AddItemModal({ userId, prefill, onClose, onAdded }: Props) {
-  const [categories, setCategories]   = useState<Category[]>([]);
-  const [ingredients, setIngredients] = useState<Ingredient[]>([]);
-  const [allIngredients, setAllIngredients] = useState<Ingredient[]>([]);
+export default function AddItemModal({ userId, prefill, cachedCategories, cachedIngredients, onClose, onAdded }: Props) {
+  const [categories, setCategories]   = useState<Category[]>(cachedCategories ?? []);
+  const [allIngredients, setAllIngredients] = useState<Ingredient[]>(cachedIngredients ?? []);
+  const [ingredients, setIngredients] = useState<Ingredient[]>(cachedIngredients ?? []);
   const [form, setForm] = useState({ name: prefill?.name ?? '', category: prefill?.category ?? '', quantity: '1', expiry: '' });
   const [selectedIng, setSelectedIng] = useState<Ingredient | null>(null);
   const [saving, setSaving]   = useState(false);
@@ -103,8 +105,9 @@ export default function AddItemModal({ userId, prefill, onClose, onAdded }: Prop
   const activeType = useRef<'product' | 'expire'>('product');
 
   useEffect(() => {
-    getCategories().then(setCategories).catch(() => {});
-    getIngredients().then(all => {
+    if (!cachedCategories) getCategories().then(setCategories).catch(() => {});
+    const ingsPromise = cachedIngredients ? Promise.resolve(cachedIngredients) : getIngredients();
+    ingsPromise.then(all => {
       setAllIngredients(all);
       setIngredients(all);
       if (prefill?.name) {

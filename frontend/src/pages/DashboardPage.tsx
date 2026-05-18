@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTheme } from '../context/ThemeContext';
-import { getInventory, deleteInventory, getCategories, getIngredients, getPushVapidKey, subscribePush, unsubscribePush } from '../api/client';
+import { getInventory, deleteInventory, getCategories, getIngredients, getPushVapidKey, subscribePush, unsubscribePush, wakeSystem } from '../api/client';
 import type { InventoryItem, Category, Ingredient, User } from '../api/types';
 import AddChoiceModal from '../components/AddChoiceModal';
 import AddItemModal from '../components/AddItemModal';
@@ -314,6 +314,7 @@ export default function DashboardPage({ user, onLogout }: Props) {
   const loadData = useCallback(async () => {
     setLoading(true); setLoadError(false);
     try {
+      await wakeSystem().catch(() => {});
       const [inv, cats, ings] = await Promise.all([getInventory(user.user_id), getCategories(), getIngredients()]);
       setCategories(cats);
       setAllIngredients(ings);
@@ -331,6 +332,11 @@ export default function DashboardPage({ user, onLogout }: Props) {
   }, [user.user_id]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  useEffect(() => {
+    const id = setInterval(() => { wakeSystem().catch(() => {}); }, 10 * 60 * 1000);
+    return () => clearInterval(id);
+  }, []);
 
   const handleDelete = async (id: number) => { await deleteInventory(id); setDeleteConfirm(null); loadData(); };
 

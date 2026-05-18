@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { updateInventory, getCategories, getIngredients, createIngredient } from '../api/client';
+import { updateInventory, getCategories, getIngredients, createIngredient, updateIngredient } from '../api/client';
 import type { InventoryItem, Category, Ingredient } from '../api/types';
 import { overlay, modalStyle, modalTitle, cancelBtn, saveBtn, fieldStyle, labelStyle, inputStyle } from '../pages/DashboardPage';
 import DatePicker from 'react-datepicker';
@@ -171,6 +171,11 @@ export default function EditItemModal({ item, cachedCategories, cachedIngredient
       let ingredientId: number;
       if (nameUnchanged) {
         ingredientId = item.ingredient_id;
+        const catEntry = categories.find(c => c.category_name === selectedCategory);
+        const originalCat = categories.find(c => c.category_name === item.categoryName);
+        if (catEntry && catEntry.category_id !== originalCat?.category_id) {
+          await updateIngredient(ingredientId, { category_id: catEntry.category_id });
+        }
       } else {
         let ing = selectedIng
           ?? allIngredients.find(i => i.name.toLowerCase() === nameInput.trim().toLowerCase())

@@ -41,6 +41,9 @@ export const searchIngredients = (keyword: string) =>
 export const createIngredient = (data: { name: string; category_id?: number }) =>
   request<Ingredient>('/ingredients', { method: 'POST', body: JSON.stringify(data) });
 
+export const updateIngredient = (id: number, data: { category_id?: number }) =>
+  request<Ingredient>(`/ingredients/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+
 // Inventory
 export const getInventory = (user_id: string) =>
   request<InventoryItem[]>(`/inventory?user_id=${user_id}`);

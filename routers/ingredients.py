@@ -6,7 +6,7 @@
 
 from fastapi import APIRouter, HTTPException, Query
 from database import get_db
-from schemas.ingredient import IngredientResponse, IngredientCreate
+from schemas.ingredient import IngredientResponse, IngredientCreate, IngredientUpdate
 from services.db_query_module import DBQueryModule
 from typing import List, Optional
 
@@ -52,6 +52,16 @@ def search_ingredients(keyword: str):
             detail="查無符合的食材範本，請手動輸入食材資訊"
         )
     return result
+
+
+@router.patch("/{ingredient_id}", response_model=IngredientResponse)
+def update_ingredient(ingredient_id: int, data: IngredientUpdate):
+    """更新食材分類"""
+    db = get_db()
+    result = db.table("ingredients").update(data.model_dump(exclude_none=True)).eq("ingredient_id", ingredient_id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Ingredient not found")
+    return result.data[0]
 
 
 @router.get("/{ingredient_id}", response_model=IngredientResponse)

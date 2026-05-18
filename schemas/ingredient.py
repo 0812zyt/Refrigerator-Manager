@@ -14,6 +14,10 @@ class IngredientCreate(BaseModel):
     default_expire_days: Optional[int] = None
 
 
+class IngredientUpdate(BaseModel):
+    category_id: Optional[int] = None
+
+
 class IngredientResponse(BaseModel):
     """食材範本回應格式"""
     model_config = ConfigDict(extra="ignore")  # 忽略 Supabase 回傳的多餘欄位

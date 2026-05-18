@@ -94,7 +94,8 @@ export default function AddItemModal({ userId, prefill, cachedCategories, cached
   const [categories, setCategories]   = useState<Category[]>(cachedCategories ?? []);
   const [allIngredients, setAllIngredients] = useState<Ingredient[]>(cachedIngredients ?? []);
   const [ingredients, setIngredients] = useState<Ingredient[]>(cachedIngredients ?? []);
-  const [form, setForm] = useState({ name: prefill?.name ?? '', category: prefill?.category ?? '', quantity: '1', expiry: '' });
+  const today = new Date().toISOString().slice(0, 10);
+  const [form, setForm] = useState({ name: prefill?.name ?? '', category: prefill?.category ?? '', quantity: '1', expiry: '', purchaseDate: today });
   const [selectedIng, setSelectedIng] = useState<Ingredient | null>(null);
   const [saving, setSaving]   = useState(false);
   const [error, setError]     = useState('');
@@ -148,7 +149,6 @@ export default function AddItemModal({ userId, prefill, cachedCategories, cached
 
   const handleSave = async () => {
     if (!form.name.trim()) { setError('請輸入食材名稱'); return; }
-    if (!form.expiry)      { setError('請選擇到期日'); return; }
     setError(''); setSaving(true);
     try {
       let ing = selectedIng
@@ -163,8 +163,8 @@ export default function AddItemModal({ userId, prefill, cachedCategories, cached
         user_id: userId,
         ingredient_id: ing.ingredient_id,
         quantity: Math.max(1, Number(form.quantity) || 1),
-        expire_date: form.expiry,
-        custom_expire: true,
+        added_date: form.purchaseDate || today,
+        ...(form.expiry ? { expire_date: form.expiry, custom_expire: true } : { custom_expire: false }),
       });
       // 新增成功後，把照片存進 localStorage
       const newId = created.inventory_id;
@@ -258,12 +258,23 @@ export default function AddItemModal({ userId, prefill, cachedCategories, cached
           </div>
 
           <div style={fieldStyle}>
-            <label style={labelStyle}>到期日 *</label>
+            <label style={labelStyle}>購入日期</label>
+            <DatePicker
+              selected={form.purchaseDate ? new Date(form.purchaseDate) : null}
+              onChange={(date: Date | null) => setForm({ ...form, purchaseDate: date ? date.toISOString().slice(0, 10) : today })}
+              dateFormat="yyyy-MM-dd"
+              placeholderText="yyyy-mm-dd"
+              customInput={<input style={inputStyle} />}
+            />
+          </div>
+
+          <div style={fieldStyle}>
+            <label style={labelStyle}>到期日</label>
             <DatePicker
               selected={form.expiry ? new Date(form.expiry) : null}
               onChange={(date: Date | null) => setForm({ ...form, expiry: date ? date.toISOString().slice(0, 10) : '' })}
               dateFormat="yyyy-MM-dd"
-              placeholderText="yyyy-mm-dd"
+              placeholderText="不填則自動計算"
               customInput={<input style={inputStyle} />}
             />
           </div>

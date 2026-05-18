@@ -281,6 +281,7 @@ export default function DashboardPage({ user, onLogout }: Props) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [allIngredients, setAllIngredients] = useState<Ingredient[]>([]);
   const [loading, setLoading]       = useState(true);
+  const [loadError, setLoadError]   = useState(false);
   const [activeCategory, setActiveCategory] = useState('全部');
   const [searchTerm, setSearchTerm] = useState('');
   const [modal, setModal]           = useState<ModalState>(null);
@@ -311,7 +312,7 @@ export default function DashboardPage({ user, onLogout }: Props) {
   const removeCartItem = (id: number) => saveCart(cartItems.filter(i => i.id !== id));
 
   const loadData = useCallback(async () => {
-    setLoading(true);
+    setLoading(true); setLoadError(false);
     try {
       const [inv, cats, ings] = await Promise.all([getInventory(user.user_id), getCategories(), getIngredients()]);
       setCategories(cats);
@@ -325,7 +326,7 @@ export default function DashboardPage({ user, onLogout }: Props) {
         ingredient_name: item.ingredient_name ?? ingMap[item.ingredient_id]?.name ?? null,
         categoryName: ingMap[item.ingredient_id]?.category_id != null ? catMap[ingMap[item.ingredient_id].category_id!] ?? undefined : undefined,
       })));
-    } catch { /**/ }
+    } catch { setLoadError(true); }
     setLoading(false);
   }, [user.user_id]);
 
@@ -469,6 +470,12 @@ export default function DashboardPage({ user, onLogout }: Props) {
         {loading ? (
           <div style={{ textAlign:'center', padding:'60px 0', color:'var(--text-3)' }}>
             <div style={{ width:28, height:28, border:'3px solid var(--border)', borderTopColor:'var(--accent)', borderRadius:'50%', animation:'spin 0.7s linear infinite', margin:'0 auto 12px' }} />載入中…
+          </div>
+        ) : loadError ? (
+          <div style={{ textAlign:'center', padding:'60px 0', color:'var(--text-3)' }}>
+            <div style={{ fontSize:40, marginBottom:8 }}>⚠️</div>
+            <div style={{ marginBottom:12 }}>無法連線，伺服器可能正在喚醒中…</div>
+            <button onClick={loadData} style={{ padding:'8px 20px', borderRadius:10, border:'none', background:'var(--accent)', color:'#fff', fontSize:14, cursor:'pointer' }}>重試</button>
           </div>
         ) : filtered.length === 0 ? (
           <div style={{ textAlign:'center', padding:'60px 0', color:'var(--text-3)' }}>

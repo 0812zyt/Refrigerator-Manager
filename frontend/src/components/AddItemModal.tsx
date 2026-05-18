@@ -156,15 +156,21 @@ export default function AddItemModal({ userId, prefill, cachedCategories, cached
         ?? allIngredients.find(i => i.name.toLowerCase().includes(form.name.trim().toLowerCase()))
         ?? null;
       if (!ing) {
-        const catEntry = categories.find(c => c.category_name === form.category);
+        const catEntry = categories.find(c => c.category_name === form.category)
+          ?? categories.find(c => c.category_name === 'Others' || c.category_name === '其他');
         ing = await createIngredient({ name: form.name.trim(), category_id: catEntry?.category_id });
       }
+      const expireDate = form.expiry
+        || (ing.default_expire_days
+          ? new Date(Date.now() + ing.default_expire_days * 86400000).toISOString().slice(0, 10)
+          : new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10));
       const created = await createInventory({
         user_id: userId,
         ingredient_id: ing.ingredient_id,
         quantity: Math.max(1, Number(form.quantity) || 1),
         added_date: form.purchaseDate || today,
-        ...(form.expiry ? { expire_date: form.expiry, custom_expire: true } : { custom_expire: false }),
+        expire_date: expireDate,
+        custom_expire: !!form.expiry,
       });
       // 新增成功後，把照片存進 localStorage
       const newId = created.inventory_id;
@@ -211,7 +217,7 @@ export default function AddItemModal({ userId, prefill, cachedCategories, cached
 
           <div style={fieldStyle}>
             <label style={labelStyle}>食材名稱 *</label>
-            <input style={inputStyle} placeholder="輸入關鍵字搜尋或手動輸入…" value={form.name}
+            <input style={{ ...inputStyle, textAlign: 'center' }} placeholder="輸入關鍵字搜尋或手動輸入…" value={form.name}
               onChange={e => setForm({ ...form, name: e.target.value })} />
           </div>
 
@@ -240,7 +246,7 @@ export default function AddItemModal({ userId, prefill, cachedCategories, cached
 
           <div style={fieldStyle}>
             <label style={labelStyle}>分類</label>
-            <select style={inputStyle} value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
+            <select style={{ ...inputStyle, textAlign: 'center' }} value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
               <option value="">全部分類</option>
               {categories.map(c => <option key={c.category_id} value={c.category_name}>{CATEGORY_ICONS[c.category_name] ?? '📦'} {c.category_name}</option>)}
             </select>
@@ -264,7 +270,7 @@ export default function AddItemModal({ userId, prefill, cachedCategories, cached
               onChange={(date: Date | null) => setForm({ ...form, purchaseDate: date ? date.toISOString().slice(0, 10) : today })}
               dateFormat="yyyy-MM-dd"
               placeholderText="yyyy-mm-dd"
-              customInput={<input style={inputStyle} />}
+              customInput={<input style={{ ...inputStyle, textAlign: 'center' }} />}
             />
           </div>
 
@@ -274,8 +280,8 @@ export default function AddItemModal({ userId, prefill, cachedCategories, cached
               selected={form.expiry ? new Date(form.expiry) : null}
               onChange={(date: Date | null) => setForm({ ...form, expiry: date ? date.toISOString().slice(0, 10) : '' })}
               dateFormat="yyyy-MM-dd"
-              placeholderText="不填則自動計算"
-              customInput={<input style={inputStyle} />}
+              placeholderText="-"
+              customInput={<input style={{ ...inputStyle, textAlign: 'center' }} />}
             />
           </div>
 

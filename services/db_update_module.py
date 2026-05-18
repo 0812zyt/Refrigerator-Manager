@@ -40,11 +40,11 @@ class DBUpdateModule:
                 .eq("ingredient_id", data["ingredient_id"])
                 .execute()
             )
+            default_days = 7
             if ingredient.data:
-                default_days = ingredient.data[0].get("default_expire_days")
-                if default_days:
-                    added = date.fromisoformat(str(data["added_date"]))
-                    data["expire_date"] = str(added + timedelta(days=default_days))
+                default_days = ingredient.data[0].get("default_expire_days") or 7
+            added = date.fromisoformat(str(data["added_date"]))
+            data["expire_date"] = str(added + timedelta(days=default_days))
 
         # 預設 custom_expire 為 False
         if "custom_expire" not in data or data["custom_expire"] is None:

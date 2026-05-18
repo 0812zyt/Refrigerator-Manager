@@ -7,11 +7,15 @@ const BASE = import.meta.env.DEV
   ? '/api/v1'
   : 'https://smartfridge-f6b6.onrender.com/api/v1';
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function request<T>(path: string, init?: RequestInit, retried = false): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     headers: { 'Content-Type': 'application/json' },
     ...init,
   });
+  if (res.status === 503 && !retried) {
+    await fetch(`${BASE}/system/wake`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+    return request<T>(path, init, true);
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ message: res.statusText }));
     throw new Error(err.detail || err.message || `HTTP ${res.status}`);

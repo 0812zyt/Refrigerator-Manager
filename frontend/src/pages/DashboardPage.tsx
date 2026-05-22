@@ -492,12 +492,12 @@ export default function DashboardPage({ user, onLogout }: Props) {
   const [prevNav, setPrevNav] = useState<'home'|'inventory'|'settings'>('inventory');
   const goCart = () => { setPrevNav(activeNav as 'home'|'inventory'|'settings'); setActiveNav('cart'); };
   const backFromCart = () => setActiveNav(prevNav);
-  const [cartItems, setCartItems] = useState<{id:number;name:string;done:boolean}[]>(() => {
+  const [cartItems, setCartItems] = useState<{id:number;name:string;done:boolean;ingredient_id?:number}[]>(() => {
     try { return JSON.parse(localStorage.getItem('fridge_cart') ?? '[]'); } catch { return []; }
   });
   const [cartInput, setCartInput] = useState('');
 
-  const saveCart = (next: {id:number;name:string;done:boolean}[]) => {
+  const saveCart = (next: {id:number;name:string;done:boolean;ingredient_id?:number}[]) => {
     setCartItems(next);
     localStorage.setItem('fridge_cart', JSON.stringify(next));
   };
@@ -524,7 +524,7 @@ export default function DashboardPage({ user, onLogout }: Props) {
     const sel = items.filter(i => selectedIds.has(i.inventory_id));
     const existing = new Set(cartItems.map(c => c.name));
     const toAdd = sel.filter(i => i.ingredient_name && !existing.has(i.ingredient_name))
-      .map((i, idx) => ({ id: Date.now() + idx, name: i.ingredient_name!, done: false }));
+      .map((i, idx) => ({ id: Date.now() + idx, name: i.ingredient_name!, done: false, ingredient_id: i.ingredient_id }));
     if (toAdd.length === 0) { showToast('選取商品已在採買清單中'); return; }
     saveCart([...cartItems, ...toAdd]);
     showToast(`已加入 ${toAdd.length} 項至採買清單`);
@@ -542,30 +542,33 @@ export default function DashboardPage({ user, onLogout }: Props) {
     const toISODate = (d: Date) => d.toISOString().split('T')[0];
     let successCount = 0;
     const stockedIds: number[] = [];
+    let lastError = '';
     await Promise.all(doneItems.map(async (cartItem) => {
-      const ing = allIngredients.find(i => i.name === cartItem.name);
-      if (!ing) return;
-      const expireDays = ing.default_expire_days ?? 7;
+      const ingredientId = cartItem.ingredient_id ?? allIngredients.find(i => i.name === cartItem.name)?.ingredient_id;
+      if (!ingredientId) return;
+      const ing = allIngredients.find(i => i.ingredient_id === ingredientId);
+      const expireDays = ing?.default_expire_days ?? 7;
       const expireDate = new Date(today);
       expireDate.setDate(expireDate.getDate() + expireDays);
       try {
-        await createInventory({ user_id: user.user_id, ingredient_id: ing.ingredient_id, quantity: 1, expire_date: toISODate(expireDate) });
+        await createInventory({ user_id: user.user_id, ingredient_id: ingredientId, quantity: 1, expire_date: toISODate(expireDate) });
         successCount++;
         stockedIds.push(cartItem.id);
-      } catch { /* skip on error */ }
+      } catch (e) { lastError = e instanceof Error ? e.message : String(e); }
     }));
     saveCart(cartItems.filter(i => !stockedIds.includes(i.id)));
     setBatchStockConfirm(false);
     loadData();
     const skipped = doneItems.length - successCount;
-    showToast(skipped > 0 ? `已入庫 ${successCount} 項，${skipped} 項找不到食材` : `已入庫 ${successCount} 項`);
+    if (lastError && successCount === 0) { showToast(`入庫失敗：${lastError.slice(0, 30)}`); return; }
+    showToast(skipped > 0 ? `已入庫 ${successCount} 項，${skipped} 項略過` : `已入庫 ${successCount} 項`);
   };
 
   const addOutOfStockToCart = () => {
     const outOfStock = items.filter(i => (i.quantity ?? 1) === 0 && i.ingredient_name);
     const existing = new Set(cartItems.map(c => c.name));
     const toAdd = outOfStock.filter(i => !existing.has(i.ingredient_name!))
-      .map((i, idx) => ({ id: Date.now() + idx, name: i.ingredient_name!, done: false }));
+      .map((i, idx) => ({ id: Date.now() + idx, name: i.ingredient_name!, done: false, ingredient_id: i.ingredient_id }));
     if (toAdd.length === 0) { showToast('所有缺貨商品已在採買清單中'); return; }
     saveCart([...cartItems, ...toAdd]);
     showToast(`已加入 ${toAdd.length} 項缺貨商品`);
@@ -718,10 +721,16 @@ export default function DashboardPage({ user, onLogout }: Props) {
                 📦 一鍵入庫已購買商品（{cartItems.filter(i => i.done).length} 項）
               </button>
             )}
-            <button onClick={addOutOfStockToCart}
-              style={{ width:'100%', padding:'13px', marginBottom:12, borderRadius:12, border:'1.5px dashed var(--border)', background:'var(--surface-2)', color:'var(--text-2)', fontWeight:600, fontSize:14, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
-              ＋ 加入缺貨商品
-            </button>
+            {items.some(i => (i.quantity ?? 1) === 0) ? (
+              <button onClick={addOutOfStockToCart}
+                style={{ width:'100%', padding:'13px', marginBottom:12, borderRadius:12, border:'1.5px dashed var(--border)', background:'var(--surface-2)', color:'var(--text-2)', fontWeight:600, fontSize:14, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+                ＋ 加入缺貨商品
+              </button>
+            ) : (
+              <div style={{ width:'100%', padding:'13px', marginBottom:12, borderRadius:12, border:'1.5px dashed var(--border)', background:'var(--surface-2)', color:'var(--text-3)', fontSize:14, display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
+                ✅ 目前庫存充足
+              </div>
+            )}
             <div style={{ display:'flex', gap:10 }}>
               <input value={cartInput} onChange={e => setCartInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && addCartItem()}

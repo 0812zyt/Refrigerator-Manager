@@ -19,51 +19,51 @@ router = APIRouter(
     tags=["System 系統控制"]
 )
 
-# 報告 3-3-1: 系統狀態（FSM 有限狀態機）
-system_state = {"status": "sleep"}
+# 報告 3-3-1: 系統狀態（保留相容性，不再阻塞後端）
+system_state = {"status": "active"}
 
 
 def get_system_state() -> dict:
-    """取得系統狀態（供其他模組使用）"""
+    """取得系統狀態"""
     return system_state
 
 
 def is_system_active() -> bool:
-    """檢查系統是否處於 active 狀態"""
-    return system_state["status"] == "active"
+    """始終返回 True，避免阻塞任何請求"""
+    return True
 
 
 @router.post("/wake")
 def wake_system():
     """
-    喚醒系統
-    對應報告 3-3-1：當門感測器偵測開啟訊號，發送此 API 喚醒後端。
-    後端隨即建立資料庫連線池並載入快取。
+    喚醒系統（相容性端點）
+    當門感測器偵測開啟訊號，Raspberry Pi 可呼叫此端點確認後端連線正常。
     """
-    system_state["status"] = "active"
     return {
         "status": "active",
-        "message": "系統已喚醒，資料庫連線就緒"
+        "message": "裝置喚醒成功（後端已就緒）"
     }
 
 
 @router.post("/sleep")
 def sleep_system():
     """
-    系統進入休眠
-    對應報告 3-3-1：系統預設為休眠模式。
+    系統進入休眠（相容性端點）
+    當門感測器偵測關閉訊號，Raspberry Pi 可呼叫此端點。
     """
-    system_state["status"] = "sleep"
     return {
         "status": "sleep",
-        "message": "系統已進入休眠模式"
+        "message": "裝置進入休眠（後端持續運作中）"
     }
 
 
 @router.get("/status")
 def get_system_status():
     """取得目前系統狀態"""
-    return system_state
+    return {
+        "status": "active",
+        "message": "後端服務正常運行中（無狀態模式）"
+    }
 
 
 @router.post("/scan-expiry")

@@ -75,18 +75,15 @@ class DBQueryModule:
     # A.2 主庫查詢（Inventory）
     # ----------------------------------------------------------------
     def query_inventory_all(self, user_id: str = None):
-        """查詢庫存列表，JOIN ingredients 取得食材名稱"""
-        query = self.db.table("user_inventory").select("*, ingredients(name)")
+        """
+        查詢庫存列表（可選依 user_id 篩選）
+        統一透過 service 層存取資料庫。
+        """
+        query = self.db.table("user_inventory").select("*")
         if user_id is not None:
             query = query.eq("user_id", user_id)
         result = query.execute()
-        items = []
-        for item in result.data:
-            ing = item.pop("ingredients", None)
-            if ing:
-                item["ingredient_name"] = ing.get("name")
-            items.append(item)
-        return items
+        return result.data
 
     def query_inventory_by_id(self, inventory_id: int):
         """查詢單一庫存項目"""

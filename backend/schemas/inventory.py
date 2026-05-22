@@ -47,7 +47,7 @@ class InventoryResponse(BaseModel):
     ingredient_id: int
     ingredient_name: Optional[str] = None
     quantity: int
-    added_date: Optional[date] = None
-    expire_date: Optional[date] = None
+    added_date: date
+    expire_date: date
     custom_expire: bool
     urgent_flag: bool

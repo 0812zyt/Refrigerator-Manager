@@ -50,7 +50,8 @@ app = FastAPI(
         "- **Categories**: 食材分類管理\n"
         "- **Ingredients**: 食材範本（Template Library）查詢\n"
         "- **Inventory**: 使用者庫存 CRUD 操作\n"
-        "- **System**: 系統控制（喚醒/休眠/到期掃描/辨識）"
+        "- **System**: 系統控制（喚醒/休眠/到期掃描/辨識）\n"
+        "- **Push**: 瀏覽器 Web Push 訂閱與推播"
     ),
     version="1.0.0",
     lifespan=lifespan
@@ -61,7 +62,7 @@ app = FastAPI(
 # ----------------------------------------------------------------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # TODO: 正式環境應限制為前端的域名
+    allow_origins=["*"],  # 允許前端所有域名連線
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -93,54 +94,6 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 
 # ----------------------------------------------------------------
-# FSM 中間件（報告 3-3-1：狀態控制）
-# 在休眠狀態下，僅允許系統控制 API 和根路徑通過。
-# 其他 API 需先透過 /api/v1/system/wake 喚醒後才能使用。
-# ----------------------------------------------------------------
-@app.middleware("http")
-async def fsm_middleware(request: Request, call_next):
-    """
-    報告 3-3-1：系統休眠保護中間件
-    當系統處於 sleep 狀態時，僅允許存取系統控制端點。
-    """
-    path = request.url.path
-
-    # 允許通過的路徑：根路徑、健康檢查、API 文件、系統控制 API
-    allowed_prefixes = [
-        "/",
-        "/health",
-        "/docs",
-        "/redoc",
-        "/openapi.json",
-        "/api/v1/system",
-        "/api/v1/push",
-    ]
-
-    # 檢查是否為允許通過的路徑
-    is_allowed = any(
-        path == prefix or path.startswith(prefix + "/")
-        for prefix in allowed_prefixes
-    )
-
-    # 根路徑精確比對
-    if path == "/":
-        is_allowed = True
-
-    if not is_allowed and not system.is_system_active():
-        return JSONResponse(
-            status_code=503,
-            content={
-                "error": True,
-                "status_code": 503,
-                "message": "系統處於休眠模式，請先呼叫 POST /api/v1/system/wake 喚醒系統"
-            }
-        )
-
-    response = await call_next(request)
-    return response
-
-
-# ----------------------------------------------------------------
 # 註冊路由（報告 3-2-2：API 介面規範）
 # ----------------------------------------------------------------
 app.include_router(users.router)
@@ -158,7 +111,6 @@ def root():
         "service": "智慧冰箱食材管理系統 API",
         "version": "1.0.0",
         "status": "running",
-        "system_state": system.get_system_state(),
         "docs": "/docs"
     }
 

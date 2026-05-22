@@ -4,9 +4,12 @@
 """
 
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv()
+# 取得當前檔案所在的目錄絕對路徑，確保不論在哪啟動都能精準讀取到 .env
+BASE_DIR = Path(__file__).resolve().parent
+load_dotenv(dotenv_path=BASE_DIR / ".env")
 
 # Supabase 連線設定
 SUPABASE_URL: str = os.getenv("SUPABASE_URL", "")

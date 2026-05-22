@@ -29,11 +29,12 @@ def get_ingredients(category_id: Optional[int] = Query(None, description="依分
 @router.post("", response_model=IngredientResponse, status_code=201)
 def create_ingredient(data: IngredientCreate):
     """新增自訂食材範本（找不到現有食材時使用）"""
-    db = get_db()
-    result = db.table("ingredients").insert(data.model_dump(exclude_none=True)).execute()
-    if not result.data:
+    from services.db_update_module import DBUpdateModule
+    update_module = DBUpdateModule()
+    result = update_module.create_ingredient(data.model_dump(exclude_none=True))
+    if not result:
         raise HTTPException(status_code=500, detail="Failed to create ingredient")
-    return result.data[0]
+    return result
 
 
 # 注意：/search/{keyword} 必須定義在 /{ingredient_id} 之前，否則 "search" 會被當成 ID 解析導致 422 錯誤

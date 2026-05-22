@@ -538,20 +538,24 @@ export default function DashboardPage({ user, onLogout }: Props) {
   };
   const batchStockAll = async () => {
     const doneItems = cartItems.filter(i => i.done);
-    const today = new Date();
-    const toISODate = (d: Date) => d.toISOString().split('T')[0];
     let successCount = 0;
     const stockedIds: number[] = [];
     let lastError = '';
     await Promise.all(doneItems.map(async (cartItem) => {
       const ingredientId = cartItem.ingredient_id ?? allIngredients.find(i => i.name === cartItem.name)?.ingredient_id;
       if (!ingredientId) return;
-      const ing = allIngredients.find(i => i.ingredient_id === ingredientId);
-      const expireDays = ing?.default_expire_days ?? 7;
-      const expireDate = new Date(today);
-      expireDate.setDate(expireDate.getDate() + expireDays);
+      // find existing zero-qty inventory item to update rather than create a new one
+      const existing = items.find(i => i.ingredient_id === ingredientId && (i.quantity ?? 1) === 0);
       try {
-        await createInventory({ user_id: user.user_id, ingredient_id: ingredientId, quantity: 1, expire_date: toISODate(expireDate) });
+        if (existing) {
+          await updateInventory(existing.inventory_id, { quantity: 1 });
+        } else {
+          const ing = allIngredients.find(i => i.ingredient_id === ingredientId);
+          const expireDays = ing?.default_expire_days ?? 7;
+          const expireDate = new Date();
+          expireDate.setDate(expireDate.getDate() + expireDays);
+          await createInventory({ user_id: user.user_id, ingredient_id: ingredientId, quantity: 1, expire_date: expireDate.toISOString().split('T')[0] });
+        }
         successCount++;
         stockedIds.push(cartItem.id);
       } catch (e) { lastError = e instanceof Error ? e.message : String(e); }

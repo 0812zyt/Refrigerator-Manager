@@ -1,86 +1,82 @@
-import { useEffect, useState } from 'react';
-import { getUsers, wakeSystem, createUser } from '../api/client';
-import type { User } from '../api/types';
+import { useState } from 'react';
+import { supabase } from '../lib/supabase';
+import { wakeSystem } from '../api/client';
 
-interface Props { onLogin: (user: User) => void; }
+const toEmail = (username: string) =>
+  `${username.trim().toLowerCase().replace(/\s+/g, '_')}@fridgeapp.local`;
 
-export default function LoginPage({ onLogin }: Props) {
-  const [form, setForm]       = useState({ username: '', password: '' });
+export default function LoginPage() {
+  const [tab, setTab]         = useState<'login' | 'signup'>('login');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError]     = useState('');
   const [loading, setLoading] = useState(false);
-  const [users, setUsers]     = useState<User[]>([]);
-  const [showCreate, setShowCreate] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [creating, setCreating] = useState(false);
 
-  useEffect(() => {
-    wakeSystem().catch(() => {});
-    getUsers().then(setUsers).catch(() => {});
-  }, []);
+  wakeSystem().catch(() => {});
 
   const handleLogin = async () => {
-    if (!form.username.trim()) { setError('請輸入帳號'); return; }
+    if (!username.trim() || !password) { setError('請填寫帳號和密碼'); return; }
     setLoading(true); setError('');
-    try {
-      const list = users.length ? users : await getUsers();
-      const found = list.find(u => u.username.toLowerCase() === form.username.trim().toLowerCase());
-      if (found) onLogin(found);
-      else setError('帳號不存在，請建立帳號');
-    } catch { setError('連線失敗，請稍後再試'); }
+    const { error: err } = await supabase.auth.signInWithPassword({
+      email: toEmail(username),
+      password,
+    });
+    if (err) setError('帳號或密碼錯誤');
     setLoading(false);
   };
 
-  const handleCreate = async () => {
-    if (!newName.trim()) return;
-    setCreating(true);
-    try {
-      const u = await createUser({ username: newName.trim() });
-      onLogin(u);
-    } catch { setError('建立帳號失敗'); setCreating(false); }
+  const handleSignup = async () => {
+    if (!username.trim() || !password) { setError('請填寫帳號和密碼'); return; }
+    if (password.length < 6) { setError('密碼至少 6 個字元'); return; }
+    setLoading(true); setError('');
+    const { error: err } = await supabase.auth.signUp({
+      email: toEmail(username),
+      password,
+      options: { data: { username: username.trim() } },
+    });
+    if (err) {
+      if (err.message.includes('already registered')) setError('此帳號名稱已被使用');
+      else setError(err.message);
+    }
+    setLoading(false);
   };
 
   return (
     <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg,#0f172a,#1e1b4b,#0f172a)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, fontFamily: "'Noto Sans TC',sans-serif" }}>
       <div style={{ width: '100%', maxWidth: 400 }}>
-        {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <div style={{ width: 64, height: 64, background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', borderRadius: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 30, margin: '0 auto 16px', boxShadow: '0 8px 32px rgba(99,102,241,0.4)' }}>🧊</div>
           <h1 style={{ color: '#f1f5f9', fontSize: 26, fontWeight: 800, margin: '0 0 6px' }}>冰箱管家</h1>
           <p style={{ color: '#64748b', fontSize: 14 }}>管理食材，告別浪費</p>
         </div>
 
-        {/* Card */}
         <div style={{ background: 'rgba(30,41,59,0.8)', backdropFilter: 'blur(20px)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 20, padding: 32, boxShadow: '0 24px 64px rgba(0,0,0,0.4)' }}>
+          {/* Tabs */}
+          <div style={{ display: 'flex', marginBottom: 24, background: 'rgba(15,23,42,0.5)', borderRadius: 10, padding: 4 }}>
+            {(['login', 'signup'] as const).map(t => (
+              <button key={t} onClick={() => { setTab(t); setError(''); }}
+                style={{ flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 600, transition: 'all 0.2s', background: tab === t ? 'linear-gradient(135deg,#6366f1,#8b5cf6)' : 'transparent', color: tab === t ? '#fff' : '#64748b' }}>
+                {t === 'login' ? '登入' : '註冊'}
+              </button>
+            ))}
+          </div>
 
-          {!showCreate ? (
-            <>
-              <Field label="帳號">
-                <Input placeholder="輸入帳號" value={form.username}
-                  onChange={e => setForm({ ...form, username: e.target.value })}
-                  onKeyDown={e => e.key === 'Enter' && handleLogin()} />
-              </Field>
-              <Field label="密碼">
-                <Input type="password" placeholder="輸入密碼" value={form.password}
-                  onChange={e => setForm({ ...form, password: e.target.value })}
-                  onKeyDown={e => e.key === 'Enter' && handleLogin()} />
-              </Field>
-              {error && <p style={{ color: '#f87171', fontSize: 13, textAlign: 'center', marginBottom: 12 }}>{error}</p>}
-              <PrimaryBtn onClick={handleLogin} disabled={loading}>{loading ? '登入中…' : '登入'}</PrimaryBtn>
-              {users.length > 0 && <p style={{ color: '#475569', fontSize: 12, textAlign: 'center', marginTop: 12 }}>現有帳號：{users.map(u => u.username).join('、')}</p>}
-              <GhostBtn onClick={() => { setShowCreate(true); setError(''); }}>+ 建立新帳號</GhostBtn>
-            </>
-          ) : (
-            <>
-              <Field label="使用者名稱">
-                <Input placeholder="輸入名稱" value={newName} autoFocus
-                  onChange={e => setNewName(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleCreate()} />
-              </Field>
-              {error && <p style={{ color: '#f87171', fontSize: 13, textAlign: 'center', marginBottom: 12 }}>{error}</p>}
-              <PrimaryBtn onClick={handleCreate} disabled={creating}>{creating ? '建立中…' : '建立並登入'}</PrimaryBtn>
-              <GhostBtn onClick={() => { setShowCreate(false); setError(''); }}>← 返回登入</GhostBtn>
-            </>
-          )}
+          <Field label="使用者名稱">
+            <Input placeholder="輸入帳號" value={username}
+              onChange={e => setUsername(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && (tab === 'login' ? handleLogin() : handleSignup())} />
+          </Field>
+          <Field label="密碼">
+            <Input type="password" placeholder={tab === 'signup' ? '至少 6 個字元' : '輸入密碼'} value={password}
+              onChange={e => setPassword(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && (tab === 'login' ? handleLogin() : handleSignup())} />
+          </Field>
+
+          {error && <p style={{ color: '#f87171', fontSize: 13, textAlign: 'center', marginBottom: 12 }}>{error}</p>}
+
+          <PrimaryBtn onClick={tab === 'login' ? handleLogin : handleSignup} disabled={loading}>
+            {loading ? '處理中…' : tab === 'login' ? '登入' : '建立帳號'}
+          </PrimaryBtn>
         </div>
       </div>
     </div>
@@ -99,9 +95,5 @@ function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
 }
 
 function PrimaryBtn({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
-  return <button {...props} style={{ width: '100%', padding: 13, background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', color: '#fff', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: 'pointer', marginTop: 4, ...props.style }}>{children}</button>;
-}
-
-function GhostBtn({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
-  return <button {...props} style={{ width: '100%', padding: 11, background: 'transparent', color: '#64748b', border: '1.5px dashed rgba(99,102,241,0.2)', borderRadius: 12, fontSize: 13, cursor: 'pointer', marginTop: 10, ...props.style }}>{children}</button>;
+  return <button {...props} style={{ width: '100%', padding: 13, background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', color: '#fff', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: 'pointer', marginTop: 4, opacity: props.disabled ? 0.6 : 1, ...props.style }}>{children}</button>;
 }

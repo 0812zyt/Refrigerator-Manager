@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict
 class UserCreate(BaseModel):
     """建立使用者的請求格式"""
     username: str
+    user_id: str | None = None
 
 
 class UserResponse(BaseModel):

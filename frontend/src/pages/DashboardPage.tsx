@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTheme } from '../context/ThemeContext';
-import { getInventory, deleteInventory, updateInventory, getCategories, getIngredients, getPushVapidKey, subscribePush, unsubscribePush, wakeSystem } from '../api/client';
+import { getInventory, deleteInventory, updateInventory, getCategories, getIngredients, getPushVapidKey, subscribePush, unsubscribePush, wakeSystem, createInventory } from '../api/client';
 import type { InventoryItem, Category, Ingredient, User } from '../api/types';
 import AddChoiceModal from '../components/AddChoiceModal';
 import AddItemModal from '../components/AddItemModal';
@@ -483,6 +483,11 @@ export default function DashboardPage({ user, onLogout }: Props) {
   const [prefill, setPrefill]       = useState<{name?:string;category?:string}|null>(null);
   const [showSearch, setShowSearch] = useState(false);
   const [viewMode, setViewMode] = useState<'grid'|'list'>('grid');
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [toast, setToast] = useState<string | null>(null);
+  const [multiDeleteConfirm, setMultiDeleteConfirm] = useState(false);
+  const [batchStockConfirm, setBatchStockConfirm] = useState(false);
   const [activeNav, setActiveNav] = useState<'home'|'inventory'|'settings'|'cart'>('inventory');
   const [prevNav, setPrevNav] = useState<'home'|'inventory'|'settings'>('inventory');
   const goCart = () => { setPrevNav(activeNav as 'home'|'inventory'|'settings'); setActiveNav('cart'); };
@@ -503,6 +508,68 @@ export default function DashboardPage({ user, onLogout }: Props) {
   };
   const toggleCartItem = (id: number) => saveCart(cartItems.map(i => i.id === id ? { ...i, done: !i.done } : i));
   const removeCartItem = (id: number) => saveCart(cartItems.filter(i => i.id !== id));
+
+  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
+  const enterSelection = (id: number) => { setSelectionMode(true); setSelectedIds(new Set([id])); };
+  const toggleSelect = (id: number) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      if (next.size === 0) setSelectionMode(false);
+      return next;
+    });
+  };
+  const exitSelection = () => { setSelectionMode(false); setSelectedIds(new Set()); };
+  const addSelectedToCart = () => {
+    const sel = items.filter(i => selectedIds.has(i.inventory_id));
+    const existing = new Set(cartItems.map(c => c.name));
+    const toAdd = sel.filter(i => i.ingredient_name && !existing.has(i.ingredient_name))
+      .map((i, idx) => ({ id: Date.now() + idx, name: i.ingredient_name!, done: false }));
+    if (toAdd.length === 0) { showToast('選取商品已在採買清單中'); return; }
+    saveCart([...cartItems, ...toAdd]);
+    showToast(`已加入 ${toAdd.length} 項至採買清單`);
+    exitSelection();
+  };
+  const deleteSelected = async () => {
+    await Promise.all([...selectedIds].map(id => deleteInventory(id)));
+    setMultiDeleteConfirm(false);
+    exitSelection();
+    loadData();
+  };
+  const batchStockAll = async () => {
+    const doneItems = cartItems.filter(i => i.done);
+    const today = new Date();
+    const toISODate = (d: Date) => d.toISOString().split('T')[0];
+    let successCount = 0;
+    const stockedIds: number[] = [];
+    await Promise.all(doneItems.map(async (cartItem) => {
+      const ing = allIngredients.find(i => i.name === cartItem.name);
+      if (!ing) return;
+      const expireDays = ing.default_expire_days ?? 7;
+      const expireDate = new Date(today);
+      expireDate.setDate(expireDate.getDate() + expireDays);
+      try {
+        await createInventory({ user_id: user.user_id, ingredient_id: ing.ingredient_id, quantity: 1, expire_date: toISODate(expireDate) });
+        successCount++;
+        stockedIds.push(cartItem.id);
+      } catch { /* skip on error */ }
+    }));
+    saveCart(cartItems.filter(i => !stockedIds.includes(i.id)));
+    setBatchStockConfirm(false);
+    loadData();
+    const skipped = doneItems.length - successCount;
+    showToast(skipped > 0 ? `已入庫 ${successCount} 項，${skipped} 項找不到食材` : `已入庫 ${successCount} 項`);
+  };
+
+  const addOutOfStockToCart = () => {
+    const outOfStock = items.filter(i => (i.quantity ?? 1) === 0 && i.ingredient_name);
+    const existing = new Set(cartItems.map(c => c.name));
+    const toAdd = outOfStock.filter(i => !existing.has(i.ingredient_name!))
+      .map((i, idx) => ({ id: Date.now() + idx, name: i.ingredient_name!, done: false }));
+    if (toAdd.length === 0) { showToast('所有缺貨商品已在採買清單中'); return; }
+    saveCart([...cartItems, ...toAdd]);
+    showToast(`已加入 ${toAdd.length} 項缺貨商品`);
+  };
 
   const loadData = useCallback(async () => {
     setLoading(true); setLoadError(false);
@@ -542,46 +609,66 @@ export default function DashboardPage({ user, onLogout }: Props) {
 
       {/* ── Header ─────────────────────────────────────────────── */}
       <header style={{ background:'var(--header-bg)', borderBottom:'1px solid var(--border)', height:58, display:'flex', alignItems:'center', padding:'0 18px', position:'sticky', top:0, zIndex:100, boxShadow:'var(--shadow)', gap:12 }}>
-        {/* Logo */}
-        <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
-          <div style={{ width:32, height:32, background:'linear-gradient(135deg,#6366f1,#8b5cf6)', borderRadius:10, display:'flex', alignItems:'center', justifyContent:'center', fontSize:17 }}>🧊</div>
-          <span style={{ fontWeight:800, fontSize:16, color:'var(--text)', letterSpacing:-0.3 }}>冰箱管家</span>
-        </div>
+        {selectionMode ? (
+        <>
+          <button onClick={exitSelection} style={{ width:34, height:34, borderRadius:10, border:'1px solid var(--border)', background:'var(--surface-2)', cursor:'pointer', fontSize:16, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>✕</button>
+          <span style={{ flex:1, textAlign:'center', fontWeight:700, fontSize:16, color:'var(--text)' }}>已選擇 {selectedIds.size} 項</span>
+          <div style={{ width:34, flexShrink:0 }} />
+        </>
+      ) : (
+        <>
+          {/* Logo */}
+          <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
+            <div style={{ width:32, height:32, background:'linear-gradient(135deg,#6366f1,#8b5cf6)', borderRadius:10, display:'flex', alignItems:'center', justifyContent:'center', fontSize:17 }}>🧊</div>
+            <span style={{ fontWeight:800, fontSize:16, color:'var(--text)', letterSpacing:-0.3 }}>冰箱管家</span>
+          </div>
 
-        {/* Search bar — expands to fill middle */}
-        <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center' }}>
-          {showSearch && (
-            <input autoFocus value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-              onBlur={() => { if (!searchTerm) setShowSearch(false); }}
-              placeholder="搜尋食材…"
-              style={{ width:'100%', maxWidth:260, padding:'7px 12px', borderRadius:10, border:'1.5px solid var(--border)', background:'var(--surface)', color:'var(--text)', fontSize:13, outline:'none' }} />
-          )}
-        </div>
-
-        {/* Right icons */}
-        <div style={{ display:'flex', alignItems:'center', gap:6, flexShrink:0 }}>
-          {/* Search */}
-          <button onClick={() => { setShowSearch(s => !s); if (showSearch) setSearchTerm(''); }}
-            style={{ width:34, height:34, borderRadius:10, border:'none', background: showSearch ? 'rgba(99,102,241,0.12)' : 'rgba(0,0,0,0.05)', cursor:'pointer', fontSize:16, display:'flex', alignItems:'center', justifyContent:'center', transition:'background 0.15s' }}>🔍</button>
-          {/* Cart */}
-          <div style={{ position:'relative' }}>
-            <button onClick={goCart}
-              style={{ width:34, height:34, borderRadius:10, border:'none', background: activeNav==='cart' ? 'rgba(99,102,241,0.12)' : 'rgba(0,0,0,0.05)', cursor:'pointer', fontSize:16, display:'flex', alignItems:'center', justifyContent:'center' }}>🛒</button>
-            {cartItems.filter(i => !i.done).length > 0 && (
-              <span style={{ position:'absolute', top:4, right:4, minWidth:16, height:16, background:'#ef4444', borderRadius:8, fontSize:10, fontWeight:700, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', padding:'0 3px', pointerEvents:'none' }}>
-                {cartItems.filter(i => !i.done).length}
-              </span>
+          {/* Search bar — expands to fill middle */}
+          <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center' }}>
+            {showSearch && (
+              <input autoFocus value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+                onBlur={() => { if (!searchTerm) setShowSearch(false); }}
+                placeholder="搜尋食材…"
+                style={{ width:'100%', maxWidth:260, padding:'7px 12px', borderRadius:10, border:'1.5px solid var(--border)', background:'var(--surface)', color:'var(--text)', fontSize:13, outline:'none' }} />
             )}
           </div>
-        </div>
+
+          {/* Right icons */}
+          <div style={{ display:'flex', alignItems:'center', gap:6, flexShrink:0 }}>
+            <button onClick={() => { setShowSearch(s => !s); if (showSearch) setSearchTerm(''); }}
+              style={{ width:34, height:34, borderRadius:10, border:'none', background: showSearch ? 'rgba(99,102,241,0.12)' : 'rgba(0,0,0,0.05)', cursor:'pointer', fontSize:16, display:'flex', alignItems:'center', justifyContent:'center', transition:'background 0.15s' }}>🔍</button>
+            <div style={{ position:'relative' }}>
+              <button onClick={goCart}
+                style={{ width:34, height:34, borderRadius:10, border:'none', background: activeNav==='cart' ? 'rgba(99,102,241,0.12)' : 'rgba(0,0,0,0.05)', cursor:'pointer', fontSize:16, display:'flex', alignItems:'center', justifyContent:'center' }}>🛒</button>
+              {cartItems.filter(i => !i.done).length > 0 && (
+                <span style={{ position:'absolute', top:4, right:4, minWidth:16, height:16, background:'#ef4444', borderRadius:8, fontSize:10, fontWeight:700, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', padding:'0 3px', pointerEvents:'none' }}>
+                  {cartItems.filter(i => !i.done).length}
+                </span>
+              )}
+            </div>
+          </div>
+        </>
+      )}
       </header>
 
-      {/* ── FAB ─────────────────────────────────────────────────── */}
-      {activeNav === 'inventory' && (
+      {/* ── FAB / Multi-select Action Bar ─────────────────────── */}
+      {activeNav === 'inventory' && !selectionMode && (
         <button onClick={() => setModal('choice')}
-          style={{ position:'fixed', bottom:80, left:'50%', transform:'translateX(-50%)', zIndex:150, padding:'11px 22px', background:'linear-gradient(135deg,#6366f1,#8b5cf6)', color:'#fff', border:'none', borderRadius:24, fontSize:13, fontWeight:600, cursor:'pointer', boxShadow:'0 3px 12px rgba(99,102,241,0.3)', whiteSpace:'nowrap', letterSpacing:0.2 }}>
-          ＋ 新增食材
+          style={{ position:'fixed', bottom:84, right:20, zIndex:150, width:56, height:56, borderRadius:'50%', background:'linear-gradient(135deg,#6366f1,#8b5cf6)', color:'#fff', border:'none', fontSize:28, cursor:'pointer', boxShadow:'0 4px 16px rgba(99,102,241,0.45)', display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1 }}>
+          ＋
         </button>
+      )}
+      {selectionMode && (
+        <div style={{ position:'fixed', bottom:64, left:0, right:0, zIndex:120, background:'var(--surface)', borderTop:'1px solid var(--border)', padding:'12px 16px', display:'flex', gap:10, boxShadow:'0 -4px 20px rgba(0,0,0,0.12)' }}>
+          <button onClick={addSelectedToCart}
+            style={{ flex:1, padding:'13px 0', borderRadius:12, border:'none', background:'linear-gradient(135deg,#6366f1,#8b5cf6)', color:'#fff', fontWeight:700, fontSize:14, cursor:'pointer' }}>
+            🛒 加入採買清單
+          </button>
+          <button onClick={() => setMultiDeleteConfirm(true)}
+            style={{ flex:1, padding:'13px 0', borderRadius:12, border:'none', background:'#ef4444', color:'#fff', fontWeight:700, fontSize:14, cursor:'pointer' }}>
+            🗑 移除商品
+          </button>
+        </div>
       )}
 
       <div style={{ maxWidth:1100, margin:'0 auto', padding:'24px 20px 180px' }}>
@@ -625,6 +712,16 @@ export default function DashboardPage({ user, onLogout }: Props) {
                 </div>
               ))}
             </div>
+            {cartItems.some(i => i.done) && (
+              <button onClick={() => setBatchStockConfirm(true)}
+                style={{ width:'100%', padding:'13px', marginBottom:12, borderRadius:12, border:'none', background:'linear-gradient(135deg,#6366f1,#8b5cf6)', color:'#fff', fontWeight:700, fontSize:14, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+                📦 一鍵入庫已購買商品（{cartItems.filter(i => i.done).length} 項）
+              </button>
+            )}
+            <button onClick={addOutOfStockToCart}
+              style={{ width:'100%', padding:'13px', marginBottom:12, borderRadius:12, border:'1.5px dashed var(--border)', background:'var(--surface-2)', color:'var(--text-2)', fontWeight:600, fontSize:14, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+              ＋ 加入缺貨商品
+            </button>
             <div style={{ display:'flex', gap:10 }}>
               <input value={cartInput} onChange={e => setCartInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && addCartItem()}
@@ -683,14 +780,14 @@ export default function DashboardPage({ user, onLogout }: Props) {
         ) : viewMode === 'grid' ? (
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))', gap:12 }}>
             {[...filtered].sort((a,b) => new Date(a.expire_date).getTime()-new Date(b.expire_date).getTime())
-              .map(item => <ItemCard key={item.inventory_id} item={item} viewMode="grid" onEdit={() => { setEditItem(item); setModal('edit'); }} onDelete={() => setDeleteConfirm(item.inventory_id)} onQuantityChange={null} />)}
+              .map(item => <ItemCard key={item.inventory_id} item={item} viewMode="grid" onEdit={() => { setEditItem(item); setModal('edit'); }} onDelete={() => setDeleteConfirm(item.inventory_id)} onQuantityChange={null} selectionMode={selectionMode} isSelected={selectedIds.has(item.inventory_id)} onLongPress={() => enterSelection(item.inventory_id)} onSelect={() => toggleSelect(item.inventory_id)} />)}
           </div>
         ) : (
           <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
             {[...filtered].sort((a,b) => new Date(a.expire_date).getTime()-new Date(b.expire_date).getTime())
-              .map(item => <ItemCard key={item.inventory_id} item={item} viewMode="list" onEdit={() => { setEditItem(item); setModal('edit'); }} onDelete={() => setDeleteConfirm(item.inventory_id)}
+              .map(item => <ItemCard key={item.inventory_id} item={item} viewMode="list" onEdit={() => { setEditItem(item); setModal('edit'); }} onDelete={() => setDeleteConfirm(item.inventory_id)} selectionMode={selectionMode} isSelected={selectedIds.has(item.inventory_id)} onLongPress={() => enterSelection(item.inventory_id)} onSelect={() => toggleSelect(item.inventory_id)}
                 onQuantityChange={async (delta) => {
-                  const next = Math.max(1, (item.quantity ?? 1) + delta);
+                  const next = Math.max(0, (item.quantity ?? 1) + delta);
                   setItems(prev => prev.map(i => i.inventory_id === item.inventory_id ? { ...i, quantity: next } : i));
                   await updateInventory(item.inventory_id, { quantity: next });
                 }} />)}
@@ -735,47 +832,133 @@ export default function DashboardPage({ user, onLogout }: Props) {
           </div>
         </div>
       )}
+
+      {multiDeleteConfirm && (
+        <div style={overlay} onClick={() => setMultiDeleteConfirm(false)}>
+          <div style={{ ...modalStyle, maxWidth:340, textAlign:'center' }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize:36, marginBottom:8 }}>🗑️</div>
+            <h3 style={{ fontWeight:700, color:'var(--text)', marginBottom:6 }}>確認移除？</h3>
+            <p style={{ color:'var(--text-3)', fontSize:14, marginBottom:24 }}>確定要移除 {selectedIds.size} 項商品嗎？</p>
+            <div style={{ display:'flex', gap:10 }}>
+              <button style={cancelBtn} onClick={() => setMultiDeleteConfirm(false)}>取消</button>
+              <button style={{ ...saveBtn, background:'#ef4444' }} onClick={deleteSelected}>確認移除</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {batchStockConfirm && (() => {
+        const doneItems = cartItems.filter(i => i.done);
+        const matchable = doneItems.filter(ci => allIngredients.some(i => i.name === ci.name));
+        const unmatched = doneItems.filter(ci => !allIngredients.some(i => i.name === ci.name));
+        return (
+          <div style={overlay} onClick={() => setBatchStockConfirm(false)}>
+            <div style={{ ...modalStyle, maxWidth:360 }} onClick={e => e.stopPropagation()}>
+              <div style={{ fontSize:32, textAlign:'center', marginBottom:8 }}>📦</div>
+              <h3 style={{ fontWeight:800, color:'var(--text)', marginBottom:4, textAlign:'center' }}>一鍵入庫</h3>
+              <p style={{ color:'var(--text-3)', fontSize:13, marginBottom:16, textAlign:'center' }}>以下商品將以預設數量（1）入庫</p>
+              <div style={{ background:'var(--surface-2)', borderRadius:12, padding:'10px 14px', marginBottom:matchable.length > 0 ? 12 : 0, maxHeight:200, overflowY:'auto' }}>
+                {matchable.map(ci => (
+                  <div key={ci.id} style={{ display:'flex', alignItems:'center', gap:8, padding:'5px 0', fontSize:14, color:'var(--text)' }}>
+                    <span style={{ color:'#22c55e', fontWeight:700 }}>✓</span>{ci.name}
+                  </div>
+                ))}
+              </div>
+              {unmatched.length > 0 && (
+                <div style={{ background:'rgba(239,68,68,0.08)', borderRadius:12, padding:'10px 14px', marginBottom:12, maxHeight:120, overflowY:'auto' }}>
+                  <div style={{ fontSize:12, color:'#ef4444', fontWeight:700, marginBottom:4 }}>以下商品找不到食材，將略過：</div>
+                  {unmatched.map(ci => (
+                    <div key={ci.id} style={{ fontSize:13, color:'#94a3b8', padding:'3px 0' }}>✕ {ci.name}</div>
+                  ))}
+                </div>
+              )}
+              {matchable.length === 0 && (
+                <p style={{ color:'#ef4444', fontSize:13, textAlign:'center', marginBottom:12 }}>沒有可識別的商品可以入庫</p>
+              )}
+              <div style={{ display:'flex', gap:10, marginTop:4 }}>
+                <button style={cancelBtn} onClick={() => setBatchStockConfirm(false)}>取消</button>
+                <button style={{ ...saveBtn, opacity: matchable.length === 0 ? 0.45 : 1 }} disabled={matchable.length === 0} onClick={batchStockAll}>
+                  確認入庫 {matchable.length > 0 ? `(${matchable.length} 項)` : ''}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {toast && (
+        <div style={{ position:'fixed', bottom:160, left:'50%', transform:'translateX(-50%)', background:'rgba(15,23,42,0.88)', color:'#fff', padding:'10px 22px', borderRadius:20, fontSize:14, fontWeight:600, zIndex:500, whiteSpace:'nowrap', animation:'fadeIn 0.18s ease', pointerEvents:'none' }}>
+          {toast}
+        </div>
+      )}
     </div>
   );
 }
 
-function ItemCard({ item, viewMode, onEdit, onDelete, onQuantityChange }: { item: EnrichedItem; viewMode: 'grid'|'list'; onEdit: ()=>void; onDelete: ()=>void; onQuantityChange: ((delta: number) => void) | null }) {
+function ItemCard({ item, viewMode, onEdit, onDelete, onQuantityChange, selectionMode, isSelected, onLongPress, onSelect }: {
+  item: EnrichedItem; viewMode: 'grid'|'list'; onEdit: ()=>void; onDelete: ()=>void;
+  onQuantityChange: ((delta: number) => void) | null;
+  selectionMode: boolean; isSelected: boolean; onLongPress: ()=>void; onSelect: ()=>void;
+}) {
   const days = getDaysLeft(item.expire_date);
   const [hovered, setHovered] = useState(false);
   const photo = localStorage.getItem(`fridge_photo_product_${item.inventory_id}`);
+  const isZeroQty = (item.quantity ?? 1) === 0;
+
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const didLongPress = useRef(false);
+  const startPress = () => { didLongPress.current = false; timerRef.current = setTimeout(() => { didLongPress.current = true; onLongPress(); }, 600); };
+  const endPress = () => { if (timerRef.current) clearTimeout(timerRef.current); };
+  const handleClick = () => { if (didLongPress.current) { didLongPress.current = false; return; } if (selectionMode) { onSelect(); return; } onEdit(); };
 
   const barColor = days < 0 ? '#ef4444' : days <= 2 ? '#f59e0b' : days <= 7 ? '#eab308' : '#22c55e';
   const dayLabel = days < 0 ? `已過期 ${Math.abs(days)} 天` : days === 0 ? '今天到期' : `剩 ${days} 天`;
 
   const cardBase: React.CSSProperties = {
-    background:'var(--surface)', border:'1.5px solid var(--border)',
+    background:'var(--surface)', border: isSelected ? '2px solid #6366f1' : '1.5px solid var(--border)',
     boxShadow: hovered ? 'var(--shadow-md)' : 'var(--shadow)',
     transition:'box-shadow 0.15s, transform 0.15s',
     transform: hovered ? 'translateY(-2px)' : 'none',
     cursor:'pointer', overflow:'hidden', position:'relative',
+    opacity: isZeroQty ? 0.55 : 1,
   };
 
   const imgContent = photo
     ? <img src={photo} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
     : <span style={{ fontSize: viewMode === 'grid' ? 48 : 28 }}>{CATEGORY_ICONS[item.categoryName ?? ''] ?? '📦'}</span>;
 
+  const selectionCircle = (size: number) => (
+    <div style={{ width:size, height:size, borderRadius:'50%', flexShrink:0,
+      background: isSelected ? '#6366f1' : 'rgba(255,255,255,0.85)',
+      border: isSelected ? `2px solid #6366f1` : '2px solid rgba(0,0,0,0.22)',
+      display:'flex', alignItems:'center', justifyContent:'center', fontSize:size*0.55, color:'#fff', transition:'all 0.15s' }}>
+      {isSelected && '✓'}
+    </div>
+  );
+
   if (viewMode === 'grid') {
     return (
-      <div onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
-        onClick={onEdit} style={{ ...cardBase, borderRadius:16, display:'flex', flexDirection:'column' }}>
-        {/* Image */}
+      <div onMouseEnter={() => setHovered(true)} onMouseLeave={() => { setHovered(false); endPress(); }}
+        onMouseDown={startPress} onMouseUp={endPress}
+        onTouchStart={startPress} onTouchEnd={endPress} onTouchMove={endPress}
+        onClick={handleClick} style={{ ...cardBase, borderRadius:16, display:'flex', flexDirection:'column' }}>
         <div style={{ height:130, background:'var(--surface-2)', display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden', position:'relative', flexShrink:0 }}>
           {imgContent}
-          <button onClick={e => { e.stopPropagation(); onDelete(); }}
-            style={{ position:'absolute', top:6, right:6, width:26, height:26, borderRadius:7, border:'none', background:'rgba(0,0,0,0.4)', backdropFilter:'blur(4px)', cursor:'pointer', fontSize:12, display:'flex', alignItems:'center', justifyContent:'center', opacity: hovered ? 1 : 0, transition:'opacity 0.15s' }}>🗑️</button>
+          {selectionMode && <div style={{ position:'absolute', top:6, left:6 }}>{selectionCircle(22)}</div>}
+          {isZeroQty && (
+            <div style={{ position:'absolute', bottom:6, left:6, background:'rgba(0,0,0,0.55)', color:'#fff', fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6 }}>已用完</div>
+          )}
+          {!selectionMode && (
+            <button onClick={e => { e.stopPropagation(); onDelete(); }}
+              style={{ position:'absolute', top:6, right:6, width:26, height:26, borderRadius:7, border:'none', background:'rgba(0,0,0,0.4)', backdropFilter:'blur(4px)', cursor:'pointer', fontSize:12, display:'flex', alignItems:'center', justifyContent:'center', opacity: hovered ? 1 : 0, transition:'opacity 0.15s' }}>🗑️</button>
+          )}
         </div>
-        {/* Info */}
         <div style={{ flex:1, padding:'8px 10px 10px', display:'flex', flexDirection:'column', justifyContent:'space-between', minHeight:0 }}>
           <div style={{ fontWeight:700, fontSize:13, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
             {item.ingredient_name ?? `食材 #${item.ingredient_id}`}
           </div>
           <div>
-            <div style={{ fontSize:11, color: barColor, fontWeight:600 }}>{dayLabel}</div>
+            <div style={{ fontSize:11, color: isZeroQty ? 'var(--text-3)' : barColor, fontWeight:600 }}>{isZeroQty ? '數量 0' : dayLabel}</div>
             <div style={{ fontSize:10, color:'var(--text-3)', marginTop:2 }}>{item.expire_date}</div>
           </div>
         </div>
@@ -784,22 +967,30 @@ function ItemCard({ item, viewMode, onEdit, onDelete, onQuantityChange }: { item
   }
 
   return (
-    <div onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
-      onClick={onEdit} style={{ ...cardBase, borderRadius:12, display:'flex', alignItems:'center', gap:12, padding:'10px 14px' }}>
-      <div style={{ width:52, height:52, borderRadius:10, background:'var(--surface-2)', display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden', flexShrink:0 }}>
+    <div onMouseEnter={() => setHovered(true)} onMouseLeave={() => { setHovered(false); endPress(); }}
+      onMouseDown={startPress} onMouseUp={endPress}
+      onTouchStart={startPress} onTouchEnd={endPress} onTouchMove={endPress}
+      onClick={handleClick} style={{ ...cardBase, borderRadius:12, display:'flex', alignItems:'center', gap:12, padding:'10px 14px' }}>
+      {selectionMode && <div style={{ flexShrink:0 }}>{selectionCircle(22)}</div>}
+      <div style={{ width:52, height:52, borderRadius:10, background:'var(--surface-2)', display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden', flexShrink:0, position:'relative' }}>
         {imgContent}
+        {isZeroQty && (
+          <div style={{ position:'absolute', inset:0, background:'rgba(0,0,0,0.38)', display:'flex', alignItems:'center', justifyContent:'center', borderRadius:10 }}>
+            <span style={{ color:'#fff', fontSize:9, fontWeight:700 }}>已用完</span>
+          </div>
+        )}
       </div>
       <div style={{ flex:1, minWidth:0 }}>
         <div style={{ fontWeight:700, fontSize:14, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
           {item.ingredient_name ?? `食材 #${item.ingredient_id}`}
         </div>
         <div style={{ fontSize:12, color:'var(--text-3)', marginTop:2 }}>
-          {item.categoryName ?? '未分類'} · 數量 {item.quantity} · 到期 {item.expire_date}
+          {item.categoryName ?? '未分類'} · 數量 {item.quantity ?? 1} · 到期 {item.expire_date}
         </div>
       </div>
       <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
-        <span style={{ fontSize:12, color: barColor, fontWeight:600, whiteSpace:'nowrap' }}>{dayLabel}</span>
-        {onQuantityChange && (
+        <span style={{ fontSize:12, color: isZeroQty ? 'var(--text-3)' : barColor, fontWeight:600, whiteSpace:'nowrap' }}>{isZeroQty ? '已用完' : dayLabel}</span>
+        {!selectionMode && onQuantityChange && (
           <div onClick={e => e.stopPropagation()} style={{ display:'flex', alignItems:'center', gap:4, background:'var(--surface-2)', borderRadius:8, padding:'2px 4px' }}>
             <button onClick={() => onQuantityChange(-1)}
               style={{ width:22, height:22, borderRadius:6, border:'none', background:'none', cursor:'pointer', fontSize:16, fontWeight:700, color:'var(--text-2)', display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1 }}>−</button>
@@ -808,8 +999,6 @@ function ItemCard({ item, viewMode, onEdit, onDelete, onQuantityChange }: { item
               style={{ width:22, height:22, borderRadius:6, border:'none', background:'none', cursor:'pointer', fontSize:16, fontWeight:700, color:'var(--text-2)', display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1 }}>＋</button>
           </div>
         )}
-        <button onClick={e => { e.stopPropagation(); onDelete(); }}
-          style={{ width:28, height:28, borderRadius:7, border:'none', background:'var(--surface-2)', cursor:'pointer', fontSize:13, display:'flex', alignItems:'center', justifyContent:'center', opacity: hovered ? 1 : 0.35, transition:'opacity 0.15s' }}>🗑️</button>
       </div>
     </div>
   );

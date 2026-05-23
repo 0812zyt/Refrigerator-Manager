@@ -24,6 +24,9 @@ export default function ImageRecognizeModal({ onClose, onFill }: Props) {
   const [imgBase64, setImgBase64] = useState<string | null>(null);
   const [loading, setLoading]   = useState(false);
   const [results, setResults]   = useState<RecognizeResult[] | null>(null);
+  const [top5, setTop5]         = useState<{ label: string; confidence: number }[] | null>(null);
+  const [lowConfidence, setLowConfidence] = useState(false);
+  const [closestClass, setClosestClass] = useState('');
   const [error, setError]       = useState('');
   const [camError, setCamError] = useState('');
 
@@ -69,21 +72,44 @@ export default function ImageRecognizeModal({ onClose, onFill }: Props) {
     reader.readAsDataURL(file);
   };
 
-  const reset = () => { stopCamera(); setImgSrc(null); setImgBase64(null); setResults(null); setError(''); setMode('choose'); };
+  const reset = () => {
+    stopCamera();
+    setImgSrc(null);
+    setImgBase64(null);
+    setResults(null);
+    setError('');
+    setTop5(null);
+    setLowConfidence(false);
+    setClosestClass('');
+    setMode('choose');
+  };
   const handleClose = () => { stopCamera(); onClose(); };
 
   const recognize = async () => {
     if (!imgBase64) return;
-    setLoading(true); setError(''); setResults(null);
+    setLoading(true); setError(''); setResults(null); setTop5(null); setLowConfidence(false); setClosestClass('');
     try {
-      const res = await fetch('https://smartfridge-f6b6.onrender.com/api/v1/system/recognize', {
+      // 支援本地開發與線上 API 自動切換：如果包含 localhost 則呼叫本地，否則呼叫相對/線上路徑
+      const apiUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+        ? '/api/v1/system/recognize'
+        : 'https://smartfridge-f6b6.onrender.com/api/v1/system/recognize';
+
+      const res = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image_base64: imgBase64 }),
       });
       const data = await res.json();
-      if (data.status === 'success' && data.data?.label) {
-        setResults([{ name: data.data.label, category: '其他', quantity: '', note: '' }]);
+      
+      setTop5(data.top5 || []);
+      setLowConfidence(data.low_confidence);
+      setClosestClass(data.closest_class);
+
+      if (data.validated && data.label) {
+        setResults([{ name: data.label, category: '其他', quantity: '', note: '' }]);
+      } else if (data.low_confidence) {
+        // 信心不足，但有候選清單，不直接報錯，而是讓用戶從下方選單選取
+        setResults([]); 
       } else {
         setError('辨識信心度不足，請手動輸入或重新拍照。');
       }
@@ -144,7 +170,7 @@ export default function ImageRecognizeModal({ onClose, onFill }: Props) {
             <div style={{ borderRadius:12, overflow:'hidden', marginBottom:12, background:'#f8fafc', lineHeight:0 }}>
               <img src={imgSrc!} alt="preview" style={{ width:'100%', maxHeight:240, objectFit:'contain', borderRadius:12 }} />
             </div>
-            {!results && (
+            {!results && !top5 && (
               <div style={{ display:'flex', gap:8 }}>
                 <button style={cancelBtn} onClick={reset}>重新選擇</button>
                 <button style={{ ...saveBtn, background:'linear-gradient(135deg,#7c3aed,#5b21b6)', opacity: loading ? 0.7 : 1 }} onClick={recognize} disabled={loading}>
@@ -159,28 +185,92 @@ export default function ImageRecognizeModal({ onClose, onFill }: Props) {
               </div>
             )}
             {error && <div style={{ background:'#fff1f2', color:'#dc2626', borderRadius:10, padding:'12px 16px', marginTop:12, fontSize:14 }}>{error}</div>}
-            {results && (
+            {(results || (top5 && top5.length > 0)) && (
               <div style={{ marginTop:16 }}>
-                <p style={{ fontWeight:700, color:'#0c4a6e', fontSize:14, marginBottom:10 }}>
-                  ✅ 辨識到 {results.length} 種食材，點擊「使用」填入表單：
-                </p>
-                {results.map((item, i) => (
-                  <div key={i} style={{ background:'#f8fafc', borderRadius:12, padding:'12px 14px', marginBottom:8, border:'1.5px solid #e0f2fe' }}>
-                    <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                      <span style={{ fontSize:24 }}>{CATEGORY_ICONS[item.category ?? ''] ?? '📦'}</span>
-                      <div style={{ flex:1 }}>
-                        <div style={{ fontWeight:700, color:'#0c4a6e' }}>{item.name}</div>
-                        <div style={{ fontSize:12, color:'#64748b' }}>{item.category} {item.quantity ? `· ${item.quantity}` : ''}</div>
-                        {item.note && <div style={{ fontSize:12, color:'#94a3b8' }}>📝 {item.note}</div>}
+                {/* 1. 高信心度結果 */}
+                {results && results.length > 0 && (
+                  <>
+                    <p style={{ fontWeight:700, color:'#059669', fontSize:14, marginBottom:10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span>✅ AI 辨識成功！</span>
+                    </p>
+                    {results.map((item, i) => (
+                      <div key={i} style={{ background:'#ecfdf5', borderRadius:12, padding:'14px', marginBottom:12, border:'1.5px solid #a7f3d0', boxShadow: '0 2px 8px rgba(16,185,129,0.05)' }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                          <span style={{ fontSize:28 }}>{CATEGORY_ICONS[item.category ?? ''] ?? '🍎'}</span>
+                          <div style={{ flex:1 }}>
+                            <div style={{ fontWeight:700, color:'#065f46', fontSize: 16 }}>{item.name}</div>
+                            <div style={{ fontSize:12, color:'#047857', opacity: 0.8 }}>已成功辨識</div>
+                          </div>
+                          <button style={{ padding:'8px 18px', background:'linear-gradient(135deg,#10b981,#059669)', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:700, cursor:'pointer', boxShadow: '0 2px 6px rgba(16,185,129,0.2)' }}
+                            onClick={() => onFill({ name: item.name, category: item.category })}>
+                            直接使用
+                          </button>
+                        </div>
                       </div>
-                      <button style={{ padding:'6px 16px', background:'linear-gradient(135deg,#0ea5e9,#0369a1)', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:700, cursor:'pointer' }}
-                        onClick={() => onFill({ name: item.name, category: item.category })}>
-                        使用
-                      </button>
+                    ))}
+                  </>
+                )}
+
+                {/* 2. 低信心度警告提示 */}
+                {lowConfidence && (
+                  <div style={{ background:'#fff7ed', border:'1.5px solid #fed7aa', borderRadius:12, padding:'12px 14px', marginBottom:12, display:'flex', flexDirection:'column', gap: 4 }}>
+                    <div style={{ fontWeight:700, color:'#c2410c', fontSize:14, display:'flex', alignItems:'center', gap:6 }}>
+                      <span>⚠️ 影像信心度不足，請手動確認</span>
+                    </div>
+                    <div style={{ fontSize:12, color:'#9a3412' }}>
+                      最接近的類別可能為 <strong>{closestClass}</strong>，您也可以從下方候選清單中選擇：
                     </div>
                   </div>
-                ))}
-                <button style={{ ...cancelBtn, marginTop:8, width:'100%' }} onClick={reset}>再辨識一張</button>
+                )}
+
+                {/* 3. Top 5 候選清單 */}
+                {top5 && top5.length > 0 && (
+                  <div style={{ marginTop: 14 }}>
+                    <p style={{ fontWeight:700, color:'#475569', fontSize:13, marginBottom:10, display:'flex', alignItems:'center', gap:6 }}>
+                      <span>📊 AI 預測候選清單 (Top 5)</span>
+                    </p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {top5.map((cand, idx) => {
+                        const confidencePct = (cand.confidence * 100).toFixed(1);
+                        return (
+                          <div key={idx} style={{ 
+                            background:'#f8fafc', 
+                            borderRadius:12, 
+                            padding:'10px 14px', 
+                            border:'1px solid #e2e8f0',
+                            display:'flex',
+                            alignItems:'center',
+                            justifyContent:'space-between',
+                          }}>
+                            <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                              <span style={{ fontSize:20 }}>💡</span>
+                              <div>
+                                <span style={{ fontWeight: 600, color: '#334155' }}>{cand.label}</span>
+                                <span style={{ fontSize: 11, color: '#94a3b8', marginLeft: 8 }}>置信度: {confidencePct}%</span>
+                              </div>
+                            </div>
+                            <button style={{ 
+                              padding:'5px 12px', 
+                              background:'linear-gradient(135deg,#3b82f6,#1d4ed8)', 
+                              color:'#fff', 
+                              border:'none', 
+                              borderRadius:8, 
+                              fontSize:12, 
+                              fontWeight:600, 
+                              cursor:'pointer',
+                              boxShadow: '0 2px 4px rgba(59,130,246,0.1)'
+                            }}
+                              onClick={() => onFill({ name: cand.label, category: '其他' })}>
+                              選用
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                <button style={{ ...cancelBtn, marginTop:16, width:'100%' }} onClick={reset}>再辨識一張</button>
               </div>
             )}
           </>

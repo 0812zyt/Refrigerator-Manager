@@ -7,12 +7,26 @@
   - active: 喚醒模式（門感測器觸發）
 """
 
+from typing import List, Optional
 from fastapi import APIRouter
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from services.expiry_module import ExpiryModule
 
 class RecognizeRequest(BaseModel):
     image_base64: str
+
+class Top5Item(BaseModel):
+    label: str
+    confidence: float
+
+class RecognizeResponse(BaseModel):
+    label: Optional[str] = None
+    confidence: Optional[float] = None
+    low_confidence: bool
+    validated: bool
+    closest_class: str
+    similarity_score: float
+    top5: List[Top5Item]
 
 router = APIRouter(
     prefix="/api/v1/system",
@@ -80,30 +94,53 @@ def manual_scan_expiry():
 # ----------------------------------------------------------------
 # 影像辨識相關端點
 # ----------------------------------------------------------------
-@router.post("/recognize")
+@router.post("/recognize", response_model=RecognizeResponse)
 def recognize_food(request: RecognizeRequest):
     """
     影像辨識 API
     對應報告 3-2-1：前端 -> 辨識模組 (Recognition API)
-    """
-
-    # TODO: 真正實作時，這裡會把 request.image_base64 送給影像辨識模組
-    # 這裡先套用組長給的回傳格式進行 Mock
-    mock_response = {"label": "番茄", "confidence": 0.92}
     
-    # 報告 3-5-4：信心門檻機制，初步設定為 0.85
-    if mock_response["confidence"] >= 0.85:
-        return {
-            "status": "success",
-            "message": "辨識成功",
-            "data": mock_response
-        }
+    支援組長提供的兩種最新回傳格式：
+    1. 成功辨識 (Validated / High Confidence)
+    2. 信心不足 (Low Confidence)，但提供 closest_class 及 top5 候選
+    
+    為了方便前端測試，利用 image_base64 的字串長度奇偶數來模擬兩種不同情境：
+    - 長度為偶數：回傳「成功辨識 (Validated / High Confidence)」
+    - 長度為奇數：回傳「信心不足 (Low Confidence)」
+    """
+    is_even = len(request.image_base64) % 2 == 0
+
+    if is_even:
+        # 成功辨識 (High Confidence)
+        return RecognizeResponse(
+            label="tacos",
+            confidence=0.893653,
+            low_confidence=False,
+            validated=True,
+            closest_class="tacos",
+            similarity_score=0.893653,
+            top5=[
+                Top5Item(label="tacos", confidence=0.893653),
+                Top5Item(label="chicken_quesadilla", confidence=0.6126),
+                Top5Item(label="nachos", confidence=0.564489),
+                Top5Item(label="huevos_rancheros", confidence=0.510663),
+                Top5Item(label="falafel", confidence=0.477136)
+            ]
+        )
     else:
-        return {
-            "status": "fail",
-            "message": "辨識信心度不足，請手動輸入",
-            "data": mock_response
-        }
-
-
-
+        # 信心不足 (Low Confidence)
+        return RecognizeResponse(
+            label=None,
+            confidence=None,
+            low_confidence=True,
+            validated=False,
+            closest_class="Banana",
+            similarity_score=0.691783,
+            top5=[
+                Top5Item(label="Banana", confidence=0.691783),
+                Top5Item(label="Banana Lady Finger", confidence=0.589211),
+                Top5Item(label="Pineapple", confidence=0.313795),
+                Top5Item(label="churros", confidence=0.312855),
+                Top5Item(label="cheese_plate", confidence=0.303018)
+            ]
+        )

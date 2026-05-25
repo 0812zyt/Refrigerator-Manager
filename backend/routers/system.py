@@ -30,7 +30,7 @@ class RecognizeResponse(BaseModel):
 
 router = APIRouter(
     prefix="/api/v1/system",
-    tags=["系統控制"]
+    tags=["System 系統控制"]
 )
 
 # 報告 3-3-1: 系統狀態（保留相容性，不再阻塞後端）
@@ -111,36 +111,36 @@ def recognize_food(request: RecognizeRequest):
     is_even = len(request.image_base64) % 2 == 0
 
     if is_even:
-        # 成功辨識（高信心度）
+        # 成功辨識 (High Confidence)
         return RecognizeResponse(
-            label="雞蛋",
+            label="tacos",
             confidence=0.893653,
             low_confidence=False,
             validated=True,
-            closest_class="雞蛋",
+            closest_class="tacos",
             similarity_score=0.893653,
             top5=[
-                Top5Item(label="雞蛋", confidence=0.893653),
-                Top5Item(label="皮蛋", confidence=0.6126),
-                Top5Item(label="鵪鶉蛋", confidence=0.564489),
-                Top5Item(label="茶葉蛋", confidence=0.510663),
-                Top5Item(label="溫泉蛋", confidence=0.477136)
+                Top5Item(label="tacos", confidence=0.893653),
+                Top5Item(label="chicken_quesadilla", confidence=0.6126),
+                Top5Item(label="nachos", confidence=0.564489),
+                Top5Item(label="huevos_rancheros", confidence=0.510663),
+                Top5Item(label="falafel", confidence=0.477136)
             ]
         )
     else:
-        # 信心不足（低信心度）
+        # 信心不足 (Low Confidence)
         return RecognizeResponse(
             label=None,
             confidence=None,
             low_confidence=True,
             validated=False,
-            closest_class="香蕉",
+            closest_class="Banana",
             similarity_score=0.691783,
             top5=[
-                Top5Item(label="香蕉", confidence=0.691783),
-                Top5Item(label="芭蕉", confidence=0.589211),
-                Top5Item(label="鳳梨", confidence=0.313795),
-                Top5Item(label="芒果", confidence=0.312855),
-                Top5Item(label="起司", confidence=0.303018)
+                Top5Item(label="Banana", confidence=0.691783),
+                Top5Item(label="Banana Lady Finger", confidence=0.589211),
+                Top5Item(label="Pineapple", confidence=0.313795),
+                Top5Item(label="churros", confidence=0.312855),
+                Top5Item(label="cheese_plate", confidence=0.303018)
             ]
         )

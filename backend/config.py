@@ -21,6 +21,21 @@ VAPID_PUBLIC_KEY: str  = os.getenv("VAPID_PUBLIC_KEY", "")
 VAPID_PRIVATE_KEY: str = os.getenv("VAPID_PRIVATE_KEY", "")
 VAPID_EMAIL: str       = os.getenv("VAPID_EMAIL", "admin@example.com")
 
+# 影像辨識服務 API 網址設定 (明天測試時組長提供的 ngrok 網址)
+_RECOGNITION_API_URL: str = os.getenv("RECOGNITION_API_URL", "")
+
+def get_recognition_api_url() -> str:
+    """動態取得影像辨識服務 API 網址"""
+    global _RECOGNITION_API_URL
+    return _RECOGNITION_API_URL
+
+def set_recognition_api_url(url: str):
+    """動態更新影像辨識服務 API 網址"""
+    global _RECOGNITION_API_URL
+    _RECOGNITION_API_URL = url.strip()
+
+
 # 驗證必要的環境變數
 if not SUPABASE_URL or not SUPABASE_KEY:
     raise ValueError("請確認 .env 檔案中已設定 SUPABASE_URL 和 SUPABASE_KEY")
+

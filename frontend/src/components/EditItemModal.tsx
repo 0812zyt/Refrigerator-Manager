@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { updateInventory, getCategories, getIngredients, createIngredient, updateIngredient } from '../api/client';
 import type { InventoryItem, Category, Ingredient } from '../api/types';
-import { overlay, modalStyle, modalTitle, cancelBtn, saveBtn, fieldStyle, labelStyle, inputStyle } from '../pages/DashboardPage';
+import { overlay, modalStyle, modalTitle, cancelBtn, saveBtn, fieldStyle, labelStyle, inputStyle, CAT_ZH } from '../pages/DashboardPage';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 
@@ -243,7 +243,7 @@ export default function EditItemModal({ item, cachedCategories, cachedIngredient
             <label style={labelStyle}>分類</label>
             <select style={{ ...inputStyle, appearance: 'auto' }} value={selectedCategory} onChange={e => setSelectedCategory(e.target.value)}>
               <option value="">尚未分類</option>
-              {categories.map(c => <option key={c.category_id} value={c.category_name}>{c.category_name}</option>)}
+              {categories.map(c => <option key={c.category_id} value={c.category_name}>{CAT_ZH[c.category_name] ?? c.category_name}</option>)}
             </select>
           </div>
 

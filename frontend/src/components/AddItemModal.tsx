@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { getCategories, getIngredients, createInventory, createIngredient } from '../api/client';
 import type { Category, Ingredient } from '../api/types';
 import { inferCategory } from '../utils/categoryInfer';
-import { overlay, modalStyle, modalTitle, cancelBtn, saveBtn, fieldStyle, labelStyle, inputStyle } from '../pages/DashboardPage';
+import { overlay, modalStyle, modalTitle, cancelBtn, saveBtn, fieldStyle, labelStyle, inputStyle, CAT_ZH } from '../pages/DashboardPage';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 
@@ -253,7 +253,7 @@ export default function AddItemModal({ userId, prefill, cachedCategories, cached
             <label style={labelStyle}>分類</label>
             <select style={{ ...inputStyle, textAlign: 'center', color: form.category ? undefined : '#94a3b8' }} value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
               <option value="">未選擇將自動分類</option>
-              {categories.map(c => <option key={c.category_id} value={c.category_name}>{CATEGORY_ICONS[c.category_name] ?? '📦'} {c.category_name}</option>)}
+              {categories.map(c => <option key={c.category_id} value={c.category_name}>{CATEGORY_ICONS[c.category_name] ?? '📦'} {CAT_ZH[c.category_name] ?? c.category_name}</option>)}
             </select>
           </div>
 

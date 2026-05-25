@@ -11,10 +11,18 @@ interface Props { user: User; onLogout: () => void; }
 
 export const CATEGORY_ICONS: Record<string, string> = {
   蔬菜:'🥬', 水果:'🍎', 肉類:'🥩', 乳製品:'🧀', 飲料:'🥤',
-  調味料:'🧂', 冷凍食品:'🧊', 其他:'📦',
+  調味料:'🧂', 冷凍食品:'🧊', 其他:'📦', 雞蛋:'🥚', 海鮮:'🦐', 主食:'🍚',
   Vegetables:'🥬', Vegetable:'🥬', Fruit:'🍎', Fruits:'🍎',
   Meat:'🥩', Dairy:'🧀', Beverages:'🥤', Drinks:'🥤',
   Condiments:'🧂', Frozen:'🧊', Others:'📦',
+  Eggs:'🥚', Seafood:'🦐', Staples:'🍚',
+};
+
+export const CAT_ZH: Record<string, string> = {
+  Dairy: '乳製品', Eggs: '雞蛋', Vegetables: '蔬菜', Vegetable: '蔬菜',
+  Fruits: '水果', Fruit: '水果', Meat: '肉類', Seafood: '海鮮',
+  Staples: '主食', Others: '其他', Beverages: '飲料', Drinks: '飲料',
+  Condiments: '調味料', Frozen: '冷凍食品',
 };
 
 const getDaysLeft = (d: string) => {
@@ -860,7 +868,7 @@ export default function DashboardPage({ user, onLogout }: Props) {
                 color: active ? '#fff' : '#6366f1',
                 boxShadow: active ? '0 4px 12px rgba(99,102,241,0.3)' : '0 1px 4px rgba(0,0,0,0.08)',
               }}>
-                {cat !== '全部' && <span style={{ fontSize:16 }}>{CATEGORY_ICONS[cat] ?? '📦'}</span>}{cat}
+                {cat !== '全部' && <span style={{ fontSize:16 }}>{CATEGORY_ICONS[cat] ?? '📦'}</span>}{CAT_ZH[cat] ?? cat}
               </button>
             );
           })}

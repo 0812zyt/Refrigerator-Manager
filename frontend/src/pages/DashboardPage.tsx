@@ -1055,10 +1055,10 @@ function ItemCard({ item, viewMode, onEdit, onQuantityChange, selectionMode, isS
   };
 
   const imgContent = customIcon
-    ? <span style={{ fontSize: viewMode === 'grid' ? 64 : 36 }}>{customIcon}</span>
+    ? <span style={{ fontSize: viewMode === 'grid' ? 90 : 40 }}>{customIcon}</span>
     : photo
       ? <img src={photo} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
-      : <span style={{ fontSize: viewMode === 'grid' ? 48 : 28 }}>{CATEGORY_ICONS[item.categoryName ?? ''] ?? '📦'}</span>;
+      : <span style={{ fontSize: viewMode === 'grid' ? 90 : 40 }}>{CATEGORY_ICONS[item.categoryName ?? ''] ?? '📦'}</span>;
 
   const selectionCircle = (size: number) => (
     <div style={{ width:size, height:size, borderRadius:'50%', flexShrink:0,

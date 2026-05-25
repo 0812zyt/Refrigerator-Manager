@@ -1033,6 +1033,7 @@ function ItemCard({ item, viewMode, onEdit, onQuantityChange, selectionMode, isS
   const days = getDaysLeft(item.expire_date);
   const [hovered, setHovered] = useState(false);
   const photo = localStorage.getItem(`fridge_photo_product_${item.inventory_id}`);
+  const customIcon = localStorage.getItem(`fridge_icon_${item.inventory_id}`);
   const isZeroQty = (item.quantity ?? 1) === 0;
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1053,9 +1054,11 @@ function ItemCard({ item, viewMode, onEdit, onQuantityChange, selectionMode, isS
     opacity: isZeroQty ? 0.55 : 1,
   };
 
-  const imgContent = photo
-    ? <img src={photo} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
-    : <span style={{ fontSize: viewMode === 'grid' ? 48 : 28 }}>{CATEGORY_ICONS[item.categoryName ?? ''] ?? '📦'}</span>;
+  const imgContent = customIcon
+    ? <span style={{ fontSize: viewMode === 'grid' ? 64 : 36 }}>{customIcon}</span>
+    : photo
+      ? <img src={photo} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+      : <span style={{ fontSize: viewMode === 'grid' ? 48 : 28 }}>{CATEGORY_ICONS[item.categoryName ?? ''] ?? '📦'}</span>;
 
   const selectionCircle = (size: number) => (
     <div style={{ width:size, height:size, borderRadius:'50%', flexShrink:0,

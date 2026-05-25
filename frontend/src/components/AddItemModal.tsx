@@ -30,22 +30,9 @@ const FOOD_STICKERS = [
   '🍚','🍞','🧇','🥞','🍜','🥗','🫙','🧃','🥤','🍵',
 ];
 
-function emojiToDataUrl(emoji: string): string {
-  const canvas = document.createElement('canvas');
-  canvas.width = 128; canvas.height = 128;
-  const ctx = canvas.getContext('2d')!;
-  ctx.fillStyle = '#f8fafc';
-  ctx.fillRect(0, 0, 128, 128);
-  ctx.font = '80px serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(emoji, 64, 68);
-  return canvas.toDataURL('image/png');
-}
-
 function PhotoPickerSheet({ onFile, onSticker, onClose }: {
   onFile: (file: File, source: 'album' | 'camera') => void;
-  onSticker: (dataUrl: string) => void;
+  onSticker: (emoji: string) => void;
   onClose: () => void;
 }) {
   const [showStickers, setShowStickers] = useState(false);
@@ -60,7 +47,7 @@ function PhotoPickerSheet({ onFile, onSticker, onClose }: {
         <div style={{ padding: '12px 16px 8px', textAlign: 'center', fontSize: 13, color: '#94a3b8' }}>選擇貼紙</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 4, padding: '8px 16px 16px' }}>
           {FOOD_STICKERS.map(emoji => (
-            <button key={emoji} onClick={() => { onSticker(emojiToDataUrl(emoji)); onClose(); }}
+            <button key={emoji} onClick={() => { onSticker(emoji); onClose(); }}
               style={{ fontSize: 28, background: 'none', border: 'none', cursor: 'pointer', padding: 4, borderRadius: 8, lineHeight: 1 }}>
               {emoji}
             </button>
@@ -101,6 +88,7 @@ export default function AddItemModal({ userId, prefill, cachedCategories, cached
   const [saving, setSaving]   = useState(false);
   const [error, setError]     = useState('');
   const [productPhoto, setProductPhoto] = useState<string | null>(null);
+  const [iconEmoji, setIconEmoji]       = useState<string | null>(null);
   const [expirePhoto, setExpirePhoto]   = useState<string | null>(null);
   const [picker, setPicker] = useState<null | 'product' | 'expire'>(null);
   const skipClearRef = useRef(false);
@@ -137,7 +125,7 @@ export default function AddItemModal({ userId, prefill, cachedCategories, cached
     const reader = new FileReader();
     reader.onload = e => {
       const dataUrl = e.target!.result as string;
-      if (type === 'product') setProductPhoto(dataUrl);
+      if (type === 'product') { setProductPhoto(dataUrl); setIconEmoji(null); }
       else setExpirePhoto(dataUrl);
     };
     reader.readAsDataURL(file);
@@ -177,9 +165,9 @@ export default function AddItemModal({ userId, prefill, cachedCategories, cached
         expire_date: expireDate,
         custom_expire: !!form.expiry,
       });
-      // 新增成功後，把照片存進 localStorage
       const newId = created.inventory_id;
-      if (productPhoto) localStorage.setItem(`fridge_photo_product_${newId}`, productPhoto);
+      if (iconEmoji)    localStorage.setItem(`fridge_icon_${newId}`, iconEmoji);
+      else if (productPhoto) localStorage.setItem(`fridge_photo_product_${newId}`, productPhoto);
       if (expirePhoto)  localStorage.setItem(`fridge_photo_expire_${newId}`, expirePhoto);
       onAdded(); onClose();
     } catch (e: unknown) {
@@ -196,19 +184,31 @@ export default function AddItemModal({ userId, prefill, cachedCategories, cached
   const catMap: Record<number, string> = {};
   categories.forEach(c => { catMap[c.category_id] = c.category_name; });
 
-  const PhotoPanel = ({ type, photo, label }: { type: 'product' | 'expire'; photo: string | null; label: string }) => (
-    <div style={panelStyle} onClick={() => openPicker(type)}>
-      {photo ? (
-        <>
-          <img src={photo} alt={label} style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0, borderRadius: 10 }} />
-          <button onClick={e => { e.stopPropagation(); type === 'product' ? setProductPhoto(null) : setExpirePhoto(null); }}
-            style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.5)', border: 'none', color: '#fff', borderRadius: '50%', width: 22, height: 22, cursor: 'pointer', fontSize: 12 }}>✕</button>
-        </>
-      ) : (
-        <span style={{ fontSize: 36, color: '#94a3b8' }}>{type === 'product' ? '📷' : '📅'}</span>
-      )}
-    </div>
-  );
+  const PhotoPanel = ({ type }: { type: 'product' | 'expire' }) => {
+    const isProduct = type === 'product';
+    const photo = isProduct ? productPhoto : expirePhoto;
+    const emoji = isProduct ? iconEmoji : null;
+    const clear = () => { if (isProduct) { setProductPhoto(null); setIconEmoji(null); } else setExpirePhoto(null); };
+    return (
+      <div style={panelStyle} onClick={() => openPicker(type)}>
+        {emoji ? (
+          <>
+            <span style={{ fontSize: 72 }}>{emoji}</span>
+            <button onClick={e => { e.stopPropagation(); clear(); }}
+              style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.4)', border: 'none', color: '#fff', borderRadius: '50%', width: 22, height: 22, cursor: 'pointer', fontSize: 12 }}>✕</button>
+          </>
+        ) : photo ? (
+          <>
+            <img src={photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0, borderRadius: 10 }} />
+            <button onClick={e => { e.stopPropagation(); clear(); }}
+              style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.5)', border: 'none', color: '#fff', borderRadius: '50%', width: 22, height: 22, cursor: 'pointer', fontSize: 12 }}>✕</button>
+          </>
+        ) : (
+          <span style={{ fontSize: 36, color: '#94a3b8' }}>{isProduct ? '📷' : '📅'}</span>
+        )}
+      </div>
+    );
+  };
 
   return (
     <>
@@ -217,7 +217,7 @@ export default function AddItemModal({ userId, prefill, cachedCategories, cached
           <h2 style={modalTitle}>＋ 新增食材</h2>
 
           <div style={{ display: 'flex', gap: 10, marginBottom: 18 }}>
-            <PhotoPanel type="product" photo={productPhoto} label="商品照片" />
+            <PhotoPanel type="product" />
           </div>
 
           <div style={fieldStyle}>
@@ -304,7 +304,7 @@ export default function AddItemModal({ userId, prefill, cachedCategories, cached
       {picker && (
         <PhotoPickerSheet
           onFile={(file) => handleFile(file, activeType.current)}
-          onSticker={(dataUrl) => { activeType.current === 'product' ? setProductPhoto(dataUrl) : setExpirePhoto(dataUrl); setPicker(null); }}
+          onSticker={(emoji) => { if (activeType.current === 'product') { setIconEmoji(emoji); setProductPhoto(null); } else setExpirePhoto(null); setPicker(null); }}
           onClose={() => setPicker(null)}
         />
       )}

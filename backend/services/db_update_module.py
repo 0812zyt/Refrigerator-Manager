@@ -140,6 +140,18 @@ class DBUpdateModule:
         return result
 
     # ----------------------------------------------------------------
+    # B.2 資料寫入操作（建立食材範本）
+    # ----------------------------------------------------------------
+    def create_ingredient(self, data: dict):
+        """新增食材範本至 ingredients 資料表"""
+        result = (
+            self.db.table("ingredients")
+            .insert(data)
+            .execute()
+        )
+        return result.data[0] if result.data else None
+
+    # ----------------------------------------------------------------
     # B.2 資料寫入操作（建立使用者）
     # ----------------------------------------------------------------
     def create_user(self, username: str, user_id: str | None = None):

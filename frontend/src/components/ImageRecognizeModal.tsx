@@ -29,6 +29,7 @@ export default function ImageRecognizeModal({ onClose, onFill }: Props) {
   const [closestClass, setClosestClass] = useState('');
   const [error, setError]       = useState('');
   const [camError, setCamError] = useState('');
+  const [manualInput, setManualInput] = useState('');
 
   const fileRef   = useRef<HTMLInputElement>(null);
   const videoRef  = useRef<HTMLVideoElement>(null);
@@ -231,7 +232,6 @@ export default function ImageRecognizeModal({ onClose, onFill }: Props) {
                     </p>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                       {top5.map((cand, idx) => {
-                        const confidencePct = (cand.confidence * 100).toFixed(1);
                         return (
                           <div key={idx} style={{ 
                             background:'#f8fafc', 
@@ -244,10 +244,7 @@ export default function ImageRecognizeModal({ onClose, onFill }: Props) {
                           }}>
                             <div style={{ display:'flex', alignItems:'center', gap:10 }}>
                               <span style={{ fontSize:20 }}>💡</span>
-                              <div>
-                                <span style={{ fontWeight: 600, color: '#334155' }}>{cand.label}</span>
-                                <span style={{ fontSize: 11, color: '#94a3b8', marginLeft: 8 }}>置信度: {confidencePct}%</span>
-                              </div>
+                              <span style={{ fontWeight: 600, color: '#334155' }}>{cand.label}</span>
                             </div>
                             <button style={{ 
                               padding:'5px 12px', 
@@ -270,7 +267,26 @@ export default function ImageRecognizeModal({ onClose, onFill }: Props) {
                   </div>
                 )}
 
-                <button style={{ ...cancelBtn, marginTop:16, width:'100%' }} onClick={reset}>再辨識一張</button>
+                {/* 手動輸入 */}
+                <div style={{ marginTop:16, padding:'14px', background:'#f8fafc', borderRadius:12, border:'1px solid #e2e8f0' }}>
+                  <p style={{ fontSize:13, color:'#64748b', fontWeight:600, marginBottom:8 }}>手動輸入食材名稱</p>
+                  <div style={{ display:'flex', gap:8 }}>
+                    <input
+                      value={manualInput}
+                      onChange={e => setManualInput(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter' && manualInput.trim()) { onFill({ name: manualInput.trim() }); handleClose(); } }}
+                      placeholder="輸入食材名稱…"
+                      style={{ flex:1, padding:'10px 12px', borderRadius:8, border:'1.5px solid #e2e8f0', fontSize:14, outline:'none' }}
+                    />
+                    <button
+                      onClick={() => { if (manualInput.trim()) { onFill({ name: manualInput.trim() }); handleClose(); } }}
+                      style={{ padding:'10px 16px', background:'linear-gradient(135deg,#6366f1,#8b5cf6)', color:'#fff', border:'none', borderRadius:8, fontSize:14, fontWeight:700, cursor:'pointer' }}>
+                      使用
+                    </button>
+                  </div>
+                </div>
+
+                <button style={{ ...cancelBtn, marginTop:12, width:'100%' }} onClick={reset}>再辨識一張</button>
               </div>
             )}
           </>

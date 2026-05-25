@@ -7,8 +7,9 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        target: 'https://smartfridge-f6b6.onrender.com',
         changeOrigin: true,
+        secure: true,
       },
     },
   },

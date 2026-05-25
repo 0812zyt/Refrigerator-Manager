@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTheme } from '../context/ThemeContext';
-import { getInventory, deleteInventory, updateInventory, getCategories, getIngredients, getPushVapidKey, subscribePush, unsubscribePush, wakeSystem, createInventory } from '../api/client';
+import { getInventory, deleteInventory, updateInventory, updateIngredient, getCategories, getIngredients, getPushVapidKey, subscribePush, unsubscribePush, wakeSystem, createInventory } from '../api/client';
 import type { InventoryItem, Category, Ingredient, User } from '../api/types';
 import AddChoiceModal from '../components/AddChoiceModal';
 import AddItemModal from '../components/AddItemModal';
@@ -48,6 +48,31 @@ interface GeminiRecipe {
   calories: number;
   cookTime: number;
   servings: number;
+}
+
+async function autoClassifyIngredients(
+  uncategorized: { ingredient_id: number; name: string }[],
+  categories: { category_id: number; category_name: string }[],
+): Promise<Record<number, number>> {
+  if (!GROQ_KEY || uncategorized.length === 0 || categories.length === 0) return {};
+  const catNames = categories.map(c => c.category_name).join('、');
+  const prompt = `你是食材分類助手。可用類別：${catNames}\n\n請幫以下食材各選一個最合適的類別，以 JSON 格式回傳 {"食材名稱":"類別名稱"}，只回傳 JSON：\n${uncategorized.map(i => `- ${i.name}`).join('\n')}`;
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROQ_KEY}` },
+    body: JSON.stringify({ model: 'llama-3.3-70b-versatile', messages: [{ role: 'user', content: prompt }], temperature: 0.1 }),
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message);
+  const text: string = data.choices?.[0]?.message?.content ?? '';
+  const result: Record<string, string> = JSON.parse(text.replace(/```json|```/g, '').trim());
+  const catNameToId = Object.fromEntries(categories.map(c => [c.category_name, c.category_id]));
+  const mapping: Record<number, number> = {};
+  for (const ing of uncategorized) {
+    const catId = catNameToId[result[ing.name]];
+    if (catId != null) mapping[ing.ingredient_id] = catId;
+  }
+  return mapping;
 }
 
 async function fetchGeminiRecipes(ingredients: string[]): Promise<GeminiRecipe[]> {
@@ -256,7 +281,7 @@ function RecipeView({ items, state, setState }: {
         </div>
       )}
 
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))', gap:12 }}>
+      <div className="fridge-grid" style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))', gap:12 }}>
         {recipes.map((r, i) => (
           <div key={i} onClick={() => setSelected(r)}
             style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:16, overflow:'hidden', boxShadow:'var(--shadow)', cursor:'pointer', transition:'transform 0.15s, box-shadow 0.15s' }}
@@ -445,7 +470,7 @@ function SettingsView({ user, onLogout }: { user: User; onLogout: () => void }) 
   return (
     <div>
       {/* Profile card */}
-      <div style={{ display:'flex', alignItems:'center', gap:14, padding:'20px 18px', background:'var(--surface)', borderRadius:16, marginBottom:20, boxShadow:'var(--shadow)' }}>
+      <div className="fridge-profile-card" style={{ display:'flex', alignItems:'center', gap:14, padding:'20px 18px', background:'var(--surface)', borderRadius:16, marginBottom:20, boxShadow:'var(--shadow)' }}>
         <div style={{ width:52, height:52, borderRadius:'50%', background:'linear-gradient(135deg,#6366f1,#8b5cf6)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontSize:22, fontWeight:700, flexShrink:0 }}>
           {user.username[0].toUpperCase()}
         </div>
@@ -492,22 +517,21 @@ export default function DashboardPage({ user, onLogout }: Props) {
   const [prevNav, setPrevNav] = useState<'home'|'inventory'|'settings'>('inventory');
   const goCart = () => { setPrevNav(activeNav as 'home'|'inventory'|'settings'); setActiveNav('cart'); };
   const backFromCart = () => setActiveNav(prevNav);
-  const [cartItems, setCartItems] = useState<{id:number;name:string;done:boolean;ingredient_id?:number}[]>(() => {
+  const [cartItems, setCartItems] = useState<{id:number;name:string;done:boolean;ingredient_id?:number;source?:'outofstock'|'manual'}[]>(() => {
     try { return JSON.parse(localStorage.getItem('fridge_cart') ?? '[]'); } catch { return []; }
   });
   const [cartInput, setCartInput] = useState('');
 
-  const saveCart = (next: {id:number;name:string;done:boolean;ingredient_id?:number}[]) => {
+  const saveCart = (next: {id:number;name:string;done:boolean;ingredient_id?:number;source?:'outofstock'|'manual'}[]) => {
     setCartItems(next);
     localStorage.setItem('fridge_cart', JSON.stringify(next));
   };
   const addCartItem = () => {
     if (!cartInput.trim()) return;
-    saveCart([...cartItems, { id: Date.now(), name: cartInput.trim(), done: false }]);
+    saveCart([...cartItems, { id: Date.now(), name: cartInput.trim(), done: false, source: 'manual' }]);
     setCartInput('');
   };
   const toggleCartItem = (id: number) => saveCart(cartItems.map(i => i.id === id ? { ...i, done: !i.done } : i));
-  const removeCartItem = (id: number) => saveCart(cartItems.filter(i => i.id !== id));
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
   const enterSelection = (id: number) => { setSelectionMode(true); setSelectedIds(new Set([id])); };
@@ -572,7 +596,7 @@ export default function DashboardPage({ user, onLogout }: Props) {
     const outOfStock = items.filter(i => (i.quantity ?? 1) === 0 && i.ingredient_name);
     const existing = new Set(cartItems.map(c => c.name));
     const toAdd = outOfStock.filter(i => !existing.has(i.ingredient_name!))
-      .map((i, idx) => ({ id: Date.now() + idx, name: i.ingredient_name!, done: false, ingredient_id: i.ingredient_id }));
+      .map((i, idx) => ({ id: Date.now() + idx, name: i.ingredient_name!, done: false, ingredient_id: i.ingredient_id, source: 'outofstock' as const }));
     if (toAdd.length === 0) { showToast('所有缺貨商品已在採買清單中'); return; }
     saveCart([...cartItems, ...toAdd]);
     showToast(`已加入 ${toAdd.length} 項缺貨商品`);
@@ -592,11 +616,29 @@ export default function DashboardPage({ user, onLogout }: Props) {
       ings.forEach(i => { ingMap[i.ingredient_id] = i; });
       const catMap: Record<number, string> = {};
       cats.forEach(c => { catMap[c.category_id] = c.category_name; });
-      setItems(inv.map(item => ({
+      const enriched = inv.map(item => ({
         ...item,
         ingredient_name: item.ingredient_name ?? ingMap[item.ingredient_id]?.name ?? null,
         categoryName: ingMap[item.ingredient_id]?.category_id != null ? catMap[ingMap[item.ingredient_id].category_id!] ?? undefined : undefined,
-      })));
+      }));
+      setItems(enriched);
+
+      // background: silently auto-classify uncategorized ingredients in inventory
+      const inventoryIngIds = new Set(inv.map(i => i.ingredient_id));
+      const toClassify = ings.filter(i => i.category_id == null && inventoryIngIds.has(i.ingredient_id));
+      if (toClassify.length > 0) {
+        autoClassifyIngredients(toClassify, cats).then(async (mapping) => {
+          const pairs = Object.entries(mapping) as [string, number][];
+          if (pairs.length === 0) return;
+          await Promise.all(pairs.map(([ingId, catId]) => updateIngredient(Number(ingId), { category_id: catId })));
+          setAllIngredients(prev => prev.map(i => mapping[i.ingredient_id] != null ? { ...i, category_id: mapping[i.ingredient_id] } : i));
+          setItems(prev => prev.map(item => {
+            const newCatId = mapping[item.ingredient_id];
+            if (newCatId == null) return item;
+            return { ...item, categoryName: catMap[newCatId] ?? undefined };
+          }));
+        }).catch(() => {});
+      }
     } catch { setLoadError(true); }
     setLoading(false);
   }, [user.user_id]);
@@ -606,6 +648,23 @@ export default function DashboardPage({ user, onLogout }: Props) {
   useEffect(() => {
     const id = setInterval(() => { wakeSystem().catch(() => {}); }, 10 * 60 * 1000);
     return () => clearInterval(id);
+  }, []);
+
+  const checkScreenSize = () => {
+    const w = window.innerWidth, h = window.innerHeight;
+    return { small: w <= 480 && w > h, narrow: w <= 480 };
+  };
+  const [isSmallScreen, setIsSmallScreen] = useState(() => checkScreenSize().small);
+  useEffect(() => {
+    const handler = () => {
+      const { small, narrow } = checkScreenSize();
+      setIsSmallScreen(small);
+      if (narrow) setViewMode('grid');
+    };
+    handler();
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleDelete = async (id: number) => { await deleteInventory(id); setDeleteConfirm(null); loadData(); };
@@ -618,7 +677,7 @@ export default function DashboardPage({ user, onLogout }: Props) {
     <div style={{ minHeight:'100vh', background:'var(--bg)' }}>
 
       {/* ── Header ─────────────────────────────────────────────── */}
-      <header style={{ background:'var(--header-bg)', borderBottom:'1px solid var(--border)', height:58, display:'flex', alignItems:'center', padding:'0 18px', position:'sticky', top:0, zIndex:100, boxShadow:'var(--shadow)', gap:12 }}>
+      <header className="fridge-header" style={{ background:'var(--header-bg)', borderBottom:'1px solid var(--border)', height:58, display:'flex', alignItems:'center', padding:'0 18px', position:'sticky', top:0, zIndex:100, boxShadow:'var(--shadow)', gap:12 }}>
         {selectionMode ? (
         <>
           <button onClick={exitSelection} style={{ width:34, height:34, borderRadius:10, border:'1px solid var(--border)', background:'var(--surface-2)', cursor:'pointer', fontSize:16, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>✕</button>
@@ -630,7 +689,7 @@ export default function DashboardPage({ user, onLogout }: Props) {
           {/* Logo */}
           <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
             <div style={{ width:32, height:32, background:'linear-gradient(135deg,#6366f1,#8b5cf6)', borderRadius:10, display:'flex', alignItems:'center', justifyContent:'center', fontSize:17 }}>🧊</div>
-            <span style={{ fontWeight:800, fontSize:16, color:'var(--text)', letterSpacing:-0.3 }}>冰箱管家</span>
+            <span className="fridge-logo-text" style={{ fontWeight:800, fontSize:16, color:'var(--text)', letterSpacing:-0.3 }}>冰箱管家</span>
           </div>
 
           {/* Search bar — expands to fill middle */}
@@ -663,7 +722,7 @@ export default function DashboardPage({ user, onLogout }: Props) {
 
       {/* ── FAB / Multi-select Action Bar ─────────────────────── */}
       {activeNav === 'inventory' && !selectionMode && (
-        <button onClick={() => setModal('choice')}
+        <button onClick={() => setModal('choice')} className="fridge-fab"
           style={{ position:'fixed', bottom:84, right:20, zIndex:150, width:56, height:56, borderRadius:'50%', background:'linear-gradient(135deg,#6366f1,#8b5cf6)', color:'#fff', border:'none', fontSize:28, cursor:'pointer', boxShadow:'0 4px 16px rgba(99,102,241,0.45)', display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1 }}>
           ＋
         </button>
@@ -680,8 +739,21 @@ export default function DashboardPage({ user, onLogout }: Props) {
           </button>
         </div>
       )}
+      {activeNav === 'cart' && cartItems.some(i => i.done) && (
+        <div style={{ position:'fixed', bottom:64, left:0, right:0, zIndex:120, background:'var(--surface)', borderTop:'1px solid var(--border)', padding:'12px 16px', display:'flex', alignItems:'center', gap:10, boxShadow:'0 -4px 20px rgba(0,0,0,0.12)' }}>
+          <span style={{ fontSize:14, color:'var(--text-2)', fontWeight:600, flexShrink:0 }}>已勾選 {cartItems.filter(i => i.done).length} 項</span>
+          <button onClick={() => setBatchStockConfirm(true)} className="fridge-batch-btn"
+            style={{ flex:1, padding:'13px 0', borderRadius:12, border:'none', background:'linear-gradient(135deg,#6366f1,#8b5cf6)', color:'#fff', fontWeight:700, fontSize:14, cursor:'pointer' }}>
+            🧊 加入冰箱
+          </button>
+          <button onClick={() => saveCart(cartItems.filter(i => !i.done))}
+            style={{ padding:'13px 16px', borderRadius:12, border:'none', background:'#ef4444', color:'#fff', fontWeight:700, fontSize:14, cursor:'pointer', flexShrink:0 }}>
+            刪除
+          </button>
+        </div>
+      )}
 
-      <div style={{ maxWidth:1100, margin:'0 auto', padding:'24px 20px 180px' }}>
+      <div className="fridge-main" style={{ maxWidth:1100, margin:'0 auto', padding:'24px 20px 180px' }}>
 
         {activeNav === 'home' && (() => {
           const now = new Date();
@@ -699,45 +771,70 @@ export default function DashboardPage({ user, onLogout }: Props) {
           );
         })()}
         {activeNav === 'settings' && <SettingsView user={user} onLogout={onLogout} />}
-        {activeNav === 'cart' && (
+        {activeNav === 'cart' && (() => {
+          const totalOutOfStock = items.filter(i => (i.quantity ?? 1) === 0 && i.ingredient_name).length;
+          const outOfStockCount = items.filter(i => (i.quantity ?? 1) === 0 && i.ingredient_name && !cartItems.some(c => c.name === i.ingredient_name)).length;
+          return (
           <div>
-            <div style={{ display:'flex', alignItems:'center', marginBottom:24, position:'relative' }}>
+            {/* Header */}
+            <div style={{ display:'flex', alignItems:'center', marginBottom:20, position:'relative' }}>
               <button onClick={backFromCart} style={{ width:34, height:34, borderRadius:10, border:'1px solid var(--border)', background:'var(--surface)', cursor:'pointer', fontSize:16, display:'flex', alignItems:'center', justifyContent:'center' }}>←</button>
-              <h2 style={{ fontSize:18, fontWeight:800, color:'var(--text)', margin:0, position:'absolute', left:'50%', transform:'translateX(-50%)' }}>🛒 購物清單</h2>
+              <h2 style={{ fontSize:18, fontWeight:800, color:'var(--text)', margin:0, position:'absolute', left:'50%', transform:'translateX(-50%)' }}>採買清單</h2>
               {cartItems.length > 0 && (
                 <button onClick={() => saveCart([])} style={{ marginLeft:'auto', fontSize:13, color:'#94a3b8', background:'none', border:'1px solid var(--border)', borderRadius:8, padding:'5px 12px', cursor:'pointer' }}>清除全部</button>
               )}
             </div>
+
+            {/* 缺貨快速加入 banner */}
+            {outOfStockCount > 0 ? (
+              <div style={{ display:'flex', alignItems:'center', gap:14, padding:'14px 16px', marginBottom:16, borderRadius:14, background:'linear-gradient(135deg,rgba(99,102,241,0.08),rgba(139,92,246,0.08))', border:'1.5px solid rgba(99,102,241,0.2)' }}>
+                <span style={{ fontSize:28, flexShrink:0 }}>🧺</span>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontWeight:700, fontSize:14, color:'var(--text)' }}>{outOfStockCount} 項缺貨食材</div>
+                  <div style={{ fontSize:12, color:'var(--text-3)', marginTop:2 }}>自動加入冰箱中所有庫存為 0 的食材</div>
+                </div>
+                <button onClick={addOutOfStockToCart}
+                  style={{ flexShrink:0, padding:'8px 16px', borderRadius:10, border:'none', background:'linear-gradient(135deg,#6366f1,#8b5cf6)', color:'#fff', fontWeight:700, fontSize:13, cursor:'pointer' }}>
+                  全部加入
+                </button>
+              </div>
+            ) : totalOutOfStock > 0 ? (
+              <div style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 16px', marginBottom:16, borderRadius:14, background:'var(--surface)', border:'1px solid var(--border)' }}>
+                <span style={{ fontSize:22 }}>🛒</span>
+                <span style={{ fontSize:13, color:'var(--text-2)' }}>缺貨食材已新增至採買清單</span>
+              </div>
+            ) : items.length > 0 && (
+              <div style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 16px', marginBottom:16, borderRadius:14, background:'var(--surface)', border:'1px solid var(--border)' }}>
+                <span style={{ fontSize:22 }}>✅</span>
+                <span style={{ fontSize:13, color:'var(--text-3)' }}>目前庫存充足</span>
+              </div>
+            )}
+
+            {/* 清單 */}
             <div style={{ background:'var(--surface)', borderRadius:16, border:'1px solid var(--border)', overflow:'hidden', marginBottom:16 }}>
               {cartItems.length === 0 && (
-                <div style={{ padding:'40px 20px', textAlign:'center', fontSize:14, color:'var(--text-3)' }}>清單是空的，新增購物品項吧！</div>
+                <div style={{ padding:'40px 20px', textAlign:'center', fontSize:14, color:'var(--text-3)' }}>清單是空的，新增採買品項吧！</div>
               )}
               {cartItems.map(item => (
-                <div key={item.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'14px 18px', borderBottom:'1px solid var(--border)' }}>
-                  <button onClick={() => toggleCartItem(item.id)} style={{ width:26, height:26, borderRadius:8, border:`2px solid ${item.done ? '#6366f1' : 'var(--border)'}`, background: item.done ? '#6366f1' : 'transparent', color:'#fff', fontSize:14, cursor:'pointer', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.15s' }}>
+                <div key={item.id} onClick={() => toggleCartItem(item.id)} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 16px', borderBottom:'1px solid var(--border)', cursor:'pointer' }}>
+                  <div style={{ width:24, height:24, borderRadius:6, border:`2px solid ${item.done ? '#6366f1' : 'var(--border)'}`, background: item.done ? '#6366f1' : 'transparent', color:'#fff', fontSize:13, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.15s' }}>
                     {item.done ? '✓' : ''}
-                  </button>
-                  <span style={{ flex:1, fontSize:15, color:'var(--text)', textDecoration: item.done ? 'line-through' : 'none', opacity: item.done ? 0.45 : 1 }}>{item.name}</span>
-                  <button onClick={() => removeCartItem(item.id)} style={{ background:'none', border:'none', color:'#94a3b8', cursor:'pointer', fontSize:16, padding:4 }}>✕</button>
+                  </div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:15, color:'var(--text)' }}>{item.name}</div>
+                    {item.source && (
+                      <span style={{ fontSize:10, fontWeight:600, padding:'1px 6px', borderRadius:4, marginTop:2, display:'inline-block',
+                        background: item.source === 'outofstock' ? 'rgba(99,102,241,0.1)' : 'rgba(148,163,184,0.15)',
+                        color: item.source === 'outofstock' ? '#6366f1' : '#94a3b8' }}>
+                        {item.source === 'outofstock' ? '缺貨' : '手動'}
+                      </span>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
-            {cartItems.some(i => i.done) && (
-              <button onClick={() => setBatchStockConfirm(true)}
-                style={{ width:'100%', padding:'13px', marginBottom:12, borderRadius:12, border:'none', background:'linear-gradient(135deg,#6366f1,#8b5cf6)', color:'#fff', fontWeight:700, fontSize:14, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
-                📦 一鍵入庫已購買商品（{cartItems.filter(i => i.done).length} 項）
-              </button>
-            )}
-            {items.some(i => (i.quantity ?? 1) === 0) ? (
-              <button onClick={addOutOfStockToCart}
-                style={{ width:'100%', padding:'13px', marginBottom:12, borderRadius:12, border:'1.5px dashed var(--border)', background:'var(--surface-2)', color:'var(--text-2)', fontWeight:600, fontSize:14, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
-                ＋ 加入缺貨商品
-              </button>
-            ) : (
-              <div style={{ width:'100%', padding:'13px', marginBottom:12, borderRadius:12, border:'1.5px dashed var(--border)', background:'var(--surface-2)', color:'var(--text-3)', fontSize:14, display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
-                ✅ 目前庫存充足
-              </div>
-            )}
+
+            {/* 新增輸入 */}
             <div style={{ display:'flex', gap:10 }}>
               <input value={cartInput} onChange={e => setCartInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && addCartItem()}
@@ -746,15 +843,16 @@ export default function DashboardPage({ user, onLogout }: Props) {
               <button onClick={addCartItem} style={{ padding:'12px 20px', borderRadius:12, background:'linear-gradient(135deg,#6366f1,#8b5cf6)', color:'#fff', border:'none', fontSize:15, fontWeight:700, cursor:'pointer' }}>＋</button>
             </div>
           </div>
-        )}
+          );
+        })()}
         {activeNav === 'inventory' && <>
 
         {/* ── Category filter ───────────────────────────────────────── */}
-        <div style={{ display:'flex', gap:10, overflowX:'auto', marginBottom:20, paddingBottom:4, scrollbarWidth:'none' }}>
+        <div className="fridge-cats" style={{ display:'flex', gap:10, overflowX:'auto', marginBottom:20, paddingBottom:4, scrollbarWidth:'none' }}>
           {['全部', ...categories.map(c => c.category_name)].map(cat => {
             const active = activeCategory === cat;
             return (
-              <button key={cat} onClick={() => setActiveCategory(cat)} style={{
+              <button key={cat} onClick={() => setActiveCategory(cat)} className="fridge-cat-btn" style={{
                 height:42, padding:'0 18px', borderRadius:999, fontSize:13, fontWeight:700,
                 cursor:'pointer', transition:'all 0.15s', border:'none', flexShrink:0,
                 display:'flex', alignItems:'center', gap:6, whiteSpace:'nowrap',
@@ -769,8 +867,8 @@ export default function DashboardPage({ user, onLogout }: Props) {
         </div>
 
         <div style={{ display:'flex', alignItems:'center', marginBottom:14 }}>
-          <p style={{ color:'var(--text-3)', fontSize:12, margin:0 }}>共 {filtered.length} 項食材</p>
-          <div style={{ marginLeft:'auto', display:'flex', gap:6, marginRight:4 }}>
+          <p className="fridge-item-count" style={{ color:'var(--text-3)', fontSize:12, margin:0 }}>共 {filtered.length} 項食材</p>
+          <div className="fridge-view-toggle" style={{ marginLeft:'auto', display:'flex', gap:6, marginRight:4 }}>
             {(['grid','list'] as const).map(mode => (
               <button key={mode} onClick={() => setViewMode(mode)} style={{ width:28, height:28, borderRadius:8, border:'none', background: viewMode === mode ? '#6366f1' : 'rgba(0,0,0,0.06)', color: viewMode === mode ? '#fff' : '#94a3b8', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, transition:'all 0.15s' }}>
                 {mode === 'grid' ? '⊞' : '☰'}
@@ -794,14 +892,22 @@ export default function DashboardPage({ user, onLogout }: Props) {
             <div style={{ fontSize:40, marginBottom:8 }}>🫙</div>沒有找到食材
           </div>
         ) : viewMode === 'grid' ? (
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))', gap:12 }}>
-            {[...filtered].sort((a,b) => new Date(a.expire_date).getTime()-new Date(b.expire_date).getTime())
-              .map(item => <ItemCard key={item.inventory_id} item={item} viewMode="grid" onEdit={() => { setEditItem(item); setModal('edit'); }} onDelete={() => setDeleteConfirm(item.inventory_id)} onQuantityChange={null} selectionMode={selectionMode} isSelected={selectedIds.has(item.inventory_id)} onLongPress={() => enterSelection(item.inventory_id)} onSelect={() => toggleSelect(item.inventory_id)} />)}
+          <div className="fridge-grid" style={{ display:'grid', gridTemplateColumns: isSmallScreen ? 'repeat(4,1fr)' : 'repeat(auto-fill,minmax(160px,1fr))', gap: isSmallScreen ? 8 : 12 }}>
+            {[...filtered].sort((a,b) => {
+                const aZero = (a.quantity ?? 1) === 0, bZero = (b.quantity ?? 1) === 0;
+                if (aZero !== bZero) return aZero ? 1 : -1;
+                return new Date(a.expire_date).getTime() - new Date(b.expire_date).getTime();
+              })
+              .map(item => <ItemCard key={item.inventory_id} item={item} viewMode="grid" onEdit={() => { setEditItem(item); setModal('edit'); }} onQuantityChange={null} selectionMode={selectionMode} isSelected={selectedIds.has(item.inventory_id)} onLongPress={() => enterSelection(item.inventory_id)} onSelect={() => toggleSelect(item.inventory_id)} />)}
           </div>
         ) : (
           <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-            {[...filtered].sort((a,b) => new Date(a.expire_date).getTime()-new Date(b.expire_date).getTime())
-              .map(item => <ItemCard key={item.inventory_id} item={item} viewMode="list" onEdit={() => { setEditItem(item); setModal('edit'); }} onDelete={() => setDeleteConfirm(item.inventory_id)} selectionMode={selectionMode} isSelected={selectedIds.has(item.inventory_id)} onLongPress={() => enterSelection(item.inventory_id)} onSelect={() => toggleSelect(item.inventory_id)}
+            {[...filtered].sort((a,b) => {
+                const aZero = (a.quantity ?? 1) === 0, bZero = (b.quantity ?? 1) === 0;
+                if (aZero !== bZero) return aZero ? 1 : -1;
+                return new Date(a.expire_date).getTime() - new Date(b.expire_date).getTime();
+              })
+              .map(item => <ItemCard key={item.inventory_id} item={item} viewMode="list" onEdit={() => { setEditItem(item); setModal('edit'); }} selectionMode={selectionMode} isSelected={selectedIds.has(item.inventory_id)} onLongPress={() => enterSelection(item.inventory_id)} onSelect={() => toggleSelect(item.inventory_id)}
                 onQuantityChange={async (delta) => {
                   const next = Math.max(0, (item.quantity ?? 1) + delta);
                   setItems(prev => prev.map(i => i.inventory_id === item.inventory_id ? { ...i, quantity: next } : i));
@@ -819,7 +925,7 @@ export default function DashboardPage({ user, onLogout }: Props) {
       {modal === 'edit' && editItem && <EditItemModal item={editItem} cachedCategories={categories} cachedIngredients={allIngredients} onClose={() => { setModal(null); setEditItem(null); }} onUpdated={loadData} />}
 
       {/* ── Bottom Nav ───────────────────────────────────────────── */}
-      <nav style={{ position:'fixed', bottom:0, left:0, right:0, height:64, background:'var(--header-bg)', borderTop:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'space-around', zIndex:100, boxShadow:'0 -2px 12px rgba(0,0,0,0.06)', padding:'0 16px' }}>
+      <nav className="fridge-nav" style={{ position:'fixed', bottom:0, left:0, right:0, height:64, background:'var(--header-bg)', borderTop:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'space-around', zIndex:100, boxShadow:'0 -2px 12px rgba(0,0,0,0.06)', padding:'0 16px' }}>
         {([
           { key:'home', icon:'🏠', label:'主畫面' },
           { key:'inventory', icon:'🧊', label:'食材' },
@@ -827,7 +933,7 @@ export default function DashboardPage({ user, onLogout }: Props) {
         ] as const).map(({ key, icon, label }) => {
           const active = activeNav === key;
           return (
-            <button key={key} onClick={() => setActiveNav(key)} style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:3, background: active ? 'rgba(99,102,241,0.12)' : 'none', border:'none', cursor:'pointer', padding:'7px 24px', borderRadius:14, transition:'background 0.15s', flex:1, maxWidth:100 }}>
+            <button key={key} onClick={() => setActiveNav(key)} className="fridge-nav-btn" style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:3, background: active ? 'rgba(99,102,241,0.12)' : 'none', border:'none', cursor:'pointer', padding:'7px 24px', borderRadius:14, transition:'background 0.15s', flex:1, maxWidth:100 }}>
               <span style={{ fontSize:22, filter: active ? 'none' : 'grayscale(1) opacity(0.45)', transition:'filter 0.15s' }}>{icon}</span>
               <span style={{ fontSize:11, fontWeight: active ? 700 : 500, color: active ? '#6366f1' : 'var(--text-3)', transition:'color 0.15s' }}>{label}</span>
             </button>
@@ -911,8 +1017,8 @@ export default function DashboardPage({ user, onLogout }: Props) {
   );
 }
 
-function ItemCard({ item, viewMode, onEdit, onDelete, onQuantityChange, selectionMode, isSelected, onLongPress, onSelect }: {
-  item: EnrichedItem; viewMode: 'grid'|'list'; onEdit: ()=>void; onDelete: ()=>void;
+function ItemCard({ item, viewMode, onEdit, onQuantityChange, selectionMode, isSelected, onLongPress, onSelect }: {
+  item: EnrichedItem; viewMode: 'grid'|'list'; onEdit: ()=>void;
   onQuantityChange: ((delta: number) => void) | null;
   selectionMode: boolean; isSelected: boolean; onLongPress: ()=>void; onSelect: ()=>void;
 }) {
@@ -957,25 +1063,21 @@ function ItemCard({ item, viewMode, onEdit, onDelete, onQuantityChange, selectio
       <div onMouseEnter={() => setHovered(true)} onMouseLeave={() => { setHovered(false); endPress(); }}
         onMouseDown={startPress} onMouseUp={endPress}
         onTouchStart={startPress} onTouchEnd={endPress} onTouchMove={endPress}
-        onClick={handleClick} style={{ ...cardBase, borderRadius:16, display:'flex', flexDirection:'column' }}>
-        <div style={{ height:130, background:'var(--surface-2)', display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden', position:'relative', flexShrink:0 }}>
+        onClick={handleClick} className={`fridge-card${isZeroQty ? ' fridge-zero-qty' : ''}`} style={{ ...cardBase, borderRadius:16, display:'flex', flexDirection:'column' }}>
+        <div className="fridge-card-img" style={{ height:130, background:'var(--surface-2)', display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden', position:'relative', flexShrink:0 }}>
           {imgContent}
           {selectionMode && <div style={{ position:'absolute', top:6, left:6 }}>{selectionCircle(22)}</div>}
           {isZeroQty && (
             <div style={{ position:'absolute', bottom:6, left:6, background:'rgba(0,0,0,0.55)', color:'#fff', fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6 }}>已用完</div>
           )}
-          {!selectionMode && (
-            <button onClick={e => { e.stopPropagation(); onDelete(); }}
-              style={{ position:'absolute', top:6, right:6, width:26, height:26, borderRadius:7, border:'none', background:'rgba(0,0,0,0.4)', backdropFilter:'blur(4px)', cursor:'pointer', fontSize:12, display:'flex', alignItems:'center', justifyContent:'center', opacity: hovered ? 1 : 0, transition:'opacity 0.15s' }}>🗑️</button>
-          )}
         </div>
-        <div style={{ flex:1, padding:'8px 10px 10px', display:'flex', flexDirection:'column', justifyContent:'space-between', minHeight:0 }}>
-          <div style={{ fontWeight:700, fontSize:13, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+        <div className="fridge-card-body" style={{ flex:1, padding:'8px 10px 10px', display:'flex', flexDirection:'column', justifyContent:'space-between', minHeight:0 }}>
+          <div className="fridge-card-name" style={{ fontWeight:700, fontSize:13, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
             {item.ingredient_name ?? `食材 #${item.ingredient_id}`}
           </div>
           <div>
-            <div style={{ fontSize:11, color: isZeroQty ? 'var(--text-3)' : barColor, fontWeight:600 }}>{isZeroQty ? '數量 0' : dayLabel}</div>
-            <div style={{ fontSize:10, color:'var(--text-3)', marginTop:2 }}>{item.expire_date}</div>
+            <div className="fridge-card-days" style={{ fontSize:11, color: isZeroQty ? 'var(--text-3)' : barColor, fontWeight:600 }}>{isZeroQty ? '數量 0' : dayLabel}</div>
+            <div className="fridge-card-date" style={{ fontSize:10, color:'var(--text-3)', marginTop:2 }}>{item.expire_date}</div>
           </div>
         </div>
       </div>
@@ -986,9 +1088,9 @@ function ItemCard({ item, viewMode, onEdit, onDelete, onQuantityChange, selectio
     <div onMouseEnter={() => setHovered(true)} onMouseLeave={() => { setHovered(false); endPress(); }}
       onMouseDown={startPress} onMouseUp={endPress}
       onTouchStart={startPress} onTouchEnd={endPress} onTouchMove={endPress}
-      onClick={handleClick} style={{ ...cardBase, borderRadius:12, display:'flex', alignItems:'center', gap:12, padding:'10px 14px' }}>
+      onClick={handleClick} className="fridge-list-row" style={{ ...cardBase, borderRadius:12, display:'flex', alignItems:'center', gap:12, padding:'10px 14px' }}>
       {selectionMode && <div style={{ flexShrink:0 }}>{selectionCircle(22)}</div>}
-      <div style={{ width:52, height:52, borderRadius:10, background:'var(--surface-2)', display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden', flexShrink:0, position:'relative' }}>
+      <div className="fridge-list-thumb" style={{ width:52, height:52, borderRadius:10, background:'var(--surface-2)', display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden', flexShrink:0, position:'relative' }}>
         {imgContent}
         {isZeroQty && (
           <div style={{ position:'absolute', inset:0, background:'rgba(0,0,0,0.38)', display:'flex', alignItems:'center', justifyContent:'center', borderRadius:10 }}>
@@ -1001,7 +1103,7 @@ function ItemCard({ item, viewMode, onEdit, onDelete, onQuantityChange, selectio
           {item.ingredient_name ?? `食材 #${item.ingredient_id}`}
         </div>
         <div style={{ fontSize:12, color:'var(--text-3)', marginTop:2 }}>
-          {item.categoryName ?? '未分類'} · 數量 {item.quantity ?? 1} · 到期 {item.expire_date}
+          {item.categoryName ?? '未分類'} · 到期 {item.expire_date}
         </div>
       </div>
       <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>

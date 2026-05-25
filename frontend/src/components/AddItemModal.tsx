@@ -246,8 +246,8 @@ export default function AddItemModal({ userId, prefill, cachedCategories, cached
 
           <div style={fieldStyle}>
             <label style={labelStyle}>分類</label>
-            <select style={{ ...inputStyle, textAlign: 'center' }} value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
-              <option value="">全部分類</option>
+            <select style={{ ...inputStyle, textAlign: 'center', color: form.category ? undefined : '#94a3b8' }} value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
+              <option value="">未選擇將自動分類</option>
               {categories.map(c => <option key={c.category_id} value={c.category_name}>{CATEGORY_ICONS[c.category_name] ?? '📦'} {c.category_name}</option>)}
             </select>
           </div>

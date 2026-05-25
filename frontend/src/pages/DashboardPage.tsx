@@ -581,8 +581,11 @@ export default function DashboardPage({ user, onLogout }: Props) {
   const loadData = useCallback(async () => {
     setLoading(true); setLoadError(false);
     try {
-      await wakeSystem().catch(() => {});
-      const [inv, cats, ings] = await Promise.all([getInventory(user.user_id), getCategories(), getIngredients()]);
+      await Promise.race([wakeSystem(), new Promise(r => setTimeout(r, 8000))]).catch(() => {});
+      const [inv, cats, ings] = await Promise.race([
+        Promise.all([getInventory(user.user_id), getCategories(), getIngredients()]),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 20000)),
+      ]);
       setCategories(cats);
       setAllIngredients(ings);
       const ingMap: Record<number, Ingredient> = {};
@@ -778,7 +781,7 @@ export default function DashboardPage({ user, onLogout }: Props) {
 
         {loading ? (
           <div style={{ textAlign:'center', padding:'60px 0', color:'var(--text-3)' }}>
-            <div style={{ width:28, height:28, border:'3px solid var(--border)', borderTopColor:'var(--accent)', borderRadius:'50%', animation:'spin 0.7s linear infinite', margin:'0 auto 12px' }} />載入中…
+            <div style={{ width:28, height:28, border:'3px solid var(--border)', borderTopColor:'var(--accent)', borderRadius:'50%', animation:'spin 0.7s linear infinite', margin:'0 auto 12px' }} />後端喚醒中，請稍候…
           </div>
         ) : loadError ? (
           <div style={{ textAlign:'center', padding:'60px 0', color:'var(--text-3)' }}>

@@ -3,9 +3,7 @@ import type {
   InventoryCreate, InventoryUpdate, SystemStatus
 } from './types';
 
-const BASE = import.meta.env.DEV
-  ? '/api/v1'
-  : 'https://smartfridge-f6b6.onrender.com/api/v1';
+const BASE = import.meta.env.VITE_API_BASE ?? 'https://smartfridge-f6b6.onrender.com/api/v1';
 
 async function request<T>(path: string, init?: RequestInit, retried = false): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { getCategories, getIngredients, createInventory, createIngredient } from '../api/client';
 import type { Category, Ingredient } from '../api/types';
+import { inferCategory } from '../utils/categoryInfer';
 import { overlay, modalStyle, modalTitle, cancelBtn, saveBtn, fieldStyle, labelStyle, inputStyle } from '../pages/DashboardPage';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
@@ -156,8 +157,12 @@ export default function AddItemModal({ userId, prefill, cachedCategories, cached
         ?? allIngredients.find(i => i.name.toLowerCase().includes(form.name.trim().toLowerCase()))
         ?? null;
       if (!ing) {
-        const catEntry = categories.find(c => c.category_name === form.category)
-          ?? categories.find(c => c.category_name === 'Others' || c.category_name === '其他');
+        let catEntry = categories.find(c => c.category_name === form.category);
+        if (!catEntry || catEntry.category_name === 'Others' || catEntry.category_name === '其他') {
+          catEntry = (await inferCategory(form.name.trim(), categories))
+            ?? catEntry
+            ?? categories.find(c => c.category_name === 'Others' || c.category_name === '其他');
+        }
         ing = await createIngredient({ name: form.name.trim(), category_id: catEntry?.category_id });
       }
       const expireDate = form.expiry

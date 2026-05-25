@@ -106,7 +106,7 @@ export default function ImageRecognizeModal({ onClose, onFill }: Props) {
       setClosestClass(data.closest_class);
 
       if (data.validated && data.label) {
-        setResults([{ name: data.label, category: '其他', quantity: '', note: '' }]);
+        setResults([{ name: data.label, quantity: '', note: '' }]);
       } else if (data.low_confidence) {
         // 信心不足，但有候選清單，不直接報錯，而是讓用戶從下方選單選取
         setResults([]); 
@@ -260,7 +260,7 @@ export default function ImageRecognizeModal({ onClose, onFill }: Props) {
                               cursor:'pointer',
                               boxShadow: '0 2px 4px rgba(59,130,246,0.1)'
                             }}
-                              onClick={() => onFill({ name: cand.label, category: '其他' })}>
+                              onClick={() => onFill({ name: cand.label })}>
                               選用
                             </button>
                           </div>

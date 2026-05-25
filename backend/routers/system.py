@@ -1,6 +1,6 @@
 """
 系統控制 API 路由
-對應報告 3-3-1：狀態控制與輸入處理（FSM 有限狀態機）
+系統控制與輸入處理（FSM 有限狀態機）
 
 系統狀態：
   - sleep: 休眠模式（預設）
@@ -37,7 +37,7 @@ router = APIRouter(
 )
 
 
-# 報告 3-3-1: 系統狀態（保留相容性，不再阻塞後端）
+# 系統狀態控制（保留相容性，不再阻塞後端）
 system_state = {"status": "active"}
 
 
@@ -88,7 +88,7 @@ def get_system_status():
 def manual_scan_expiry():
     """
     手動觸發到期掃描（用於測試）
-    正式環境由 APScheduler 每日凌晨自動執行（報告 3-4-1）。
+    正式環境由 APScheduler 每日凌晨自動執行。
     """
     expiry = ExpiryModule()
     result = expiry.scan_and_update()
@@ -96,7 +96,7 @@ def manual_scan_expiry():
 
 
 # ----------------------------------------------------------------
-# 影像辨識相關端點 (含組長 API 轉發與 Fallback 機制)
+# 影像辨識相關端點 (含外部影像辨識 API 轉發與 Fallback 機制)
 # ----------------------------------------------------------------
 class SetUrlRequest(BaseModel):
     url: str
@@ -105,8 +105,8 @@ class SetUrlRequest(BaseModel):
 def set_recognition_url(body: SetUrlRequest):
     """
     動態更新影像辨識 API 網址
-    當組長在本機重新啟動 ngrok 時，會產生新的 URL。前端或開發者可以透過此 API 
-    更新後端所指向的辨識伺服器網址，免去修改環境變數和重啟 Render 的等待時間。
+    當外部影像辨識伺服器重啟並產生新網址時（如使用 ngrok 免費版），開發者與測試端
+    可透過此端點動態調整後端指向的影像辨識伺服器網址，免去重置環境變數與重新部署後端的等待。
     """
     config.set_recognition_api_url(body.url)
     return {
@@ -119,11 +119,11 @@ def set_recognition_url(body: SetUrlRequest):
 def recognize_food(request: RecognizeRequest):
     """
     影像辨識 API
-    對應報告 3-2-1：前端 -> 辨識模組 (Recognition API)
+    整合前端請求與後台影像辨識伺服器的中轉介面 (Recognition API)
     
     具備轉發與降級功能：
-    - 若設定了 RECOGNITION_API_URL，會將圖片二進位轉發至組長架設的辨識 API。
-    - 若組長端未開啟、逾時或發生錯誤，將自動降級（Fallback）使用本機的模擬數據。
+    - 若設定了影像辨識 API 網址，會將圖片二進位轉發至外部的影像辨識服務。
+    - 若影像辨識服務未開啟、逾時或發生錯誤，將自動降級（Fallback）使用本機的模擬備援數據。
     """
     rec_api_url = config.get_recognition_api_url()
     if rec_api_url:
@@ -137,7 +137,7 @@ def recognize_food(request: RecognizeRequest):
             # 2. 以 Multipart/form-data 格式包裝成 file 上傳
             files = {"file": ("image.jpg", image_data, "image/jpeg")}
             
-            # 3. 發送 POST 請求至組長本機服務，限時 15 秒避免卡死後端
+            # 3. 發送 POST 請求至外部影像辨識服務，限時 15 秒避免卡死後端
             with httpx.Client(timeout=15.0) as client:
                 response = client.post(rec_api_url, files=files)
                 if response.status_code == 200:

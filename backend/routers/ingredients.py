@@ -1,7 +1,7 @@
 """
 食材範本 API 路由
 提供食材範本（Template Library）的查詢與搜尋功能。
-對應報告 3-3-2 A.3：備用庫查詢。
+系統食材範本（備用庫）的模糊比對與檢索。
 """
 
 from fastapi import APIRouter, HTTPException, Query
@@ -42,7 +42,7 @@ def create_ingredient(data: IngredientCreate):
 def search_ingredients(keyword: str):
     """
     搜尋食材範本（模糊比對）
-    對應報告 3-3-2 A.3：備用庫查詢
+    備用庫（範本資料庫）檢索。
     若查無則回傳 404，提示使用者手動輸入。
     """
     query_module = DBQueryModule()

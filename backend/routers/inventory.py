@@ -1,7 +1,7 @@
 """
 使用者庫存 API 路由
 提供庫存的 CRUD 操作，為系統最核心的 API。
-對應報告 3-2-2 API 規範及 3-3-2 資料查詢與寫入流程。
+遵循系統 API 規範與資料庫查詢寫入流程。
 """
 
 from fastapi import APIRouter, HTTPException, Query
@@ -42,7 +42,7 @@ def search_inventory(
 ):
     """
     搜尋使用者庫存中的食材
-    對應報告 3-3-2 A：先查主庫，查無再查範本庫。
+    查詢邏輯：先查詢使用者個人庫存，若無相符食材再查詢系統食材範本庫。
     """
     query_module = DBQueryModule()
 
@@ -87,7 +87,7 @@ def get_inventory_item(inventory_id: int):
 def create_inventory(item: InventoryCreate):
     """
     新增庫存項目（食材放入冰箱）
-    對應報告 3-3-2 B：資料更新與寫入邏輯
+    資料更新與寫入邏輯
 
     自動處理：
     - 若未提供 added_date，自動填入今天日期
@@ -110,7 +110,7 @@ def create_inventory(item: InventoryCreate):
 def update_inventory(inventory_id: int, item: InventoryUpdate):
     """
     修改庫存項目（如修改數量、更新效期）
-    對應報告 3-2-2：PUT 修改操作
+    PUT 修改庫存項目操作
     """
     # 檢查是否存在
     query_module = DBQueryModule()
@@ -138,7 +138,7 @@ def update_inventory(inventory_id: int, item: InventoryUpdate):
 def delete_inventory(inventory_id: int):
     """
     刪除庫存項目
-    對應報告 3-2-2：DELETE 刪除操作
+    DELETE 刪除庫存項目操作
     """
     # 檢查是否存在
     query_module = DBQueryModule()

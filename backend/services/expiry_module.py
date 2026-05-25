@@ -1,8 +1,8 @@
 """
 自動化效期監控模組 (ExpiryModule)
-對應報告 3-4：自動化背景服務
+自動化背景服務設計
 
-流程（報告 3-4-2）：
+效期檢查與更新流程：
   1. 資料庫掃描：對 user_inventory 進行掃描，針對 expire_date 進行範圍查詢
   2. 閾值判斷：
      - 即將過期（24~48 小時內）→ 標記 urgent_flag = True（黃色警示）
@@ -22,7 +22,7 @@ class ExpiryModule:
 
     def scan_and_update(self) -> dict:
         """
-        報告 3-4-2：到期判斷與推播流程
+        到期判斷與推播流程
         由排程器（APScheduler）定期呼叫此方法。
         """
         today = date.today()

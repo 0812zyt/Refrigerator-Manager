@@ -21,7 +21,7 @@ VAPID_PUBLIC_KEY: str  = os.getenv("VAPID_PUBLIC_KEY", "")
 VAPID_PRIVATE_KEY: str = os.getenv("VAPID_PRIVATE_KEY", "")
 VAPID_EMAIL: str       = os.getenv("VAPID_EMAIL", "admin@example.com")
 
-# 影像辨識服務 API 網址設定 (明天測試時組長提供的 ngrok 網址)
+# 影像辨識服務 API 網址設定 (外部影像辨識伺服器的 ngrok 網址)
 _RECOGNITION_API_URL: str = os.getenv("RECOGNITION_API_URL", "")
 
 def get_recognition_api_url() -> str:

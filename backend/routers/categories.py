@@ -19,7 +19,7 @@ router = APIRouter(
 def get_categories():
     """
     取得所有食材分類
-    對應報告 3-2-2：GET 查詢操作
+    GET 查詢操作
     """
     query_module = DBQueryModule()
     return query_module.query_all_categories()

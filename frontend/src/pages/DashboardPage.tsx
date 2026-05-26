@@ -145,7 +145,7 @@ interface RecipeState {
 
 function RecipeDetailModal({ recipe, onClose }: { recipe: GeminiRecipe; onClose: () => void }) {
   return (
-    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.55)', backdropFilter:'blur(6px)', display:'flex', alignItems:'flex-end', justifyContent:'center', zIndex:300, padding:'0 0 0 0' }}
+    <div style={{ position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.55)', backdropFilter:'blur(6px)', display:'flex', alignItems:'flex-end', justifyContent:'center', zIndex:300, padding:'0 0 0 0' }}
       onClick={onClose}>
       <div style={{ background:'var(--surface)', borderRadius:'24px 24px 0 0', width:'100%', maxWidth:520, maxHeight:'88vh', overflowY:'auto', padding:'0 0 40px', boxShadow:'0 -8px 40px rgba(0,0,0,0.2)', animation:'slideUp 0.22s ease' }}
         onClick={e => e.stopPropagation()}>
@@ -702,17 +702,55 @@ export default function DashboardPage({ user, onLogout }: Props) {
   // ── 480×320 橫向裝置模式：只顯示兩個操作按鈕 ────────────────────
   if (isSmallScreen) {
     return (
-      <div style={{ width:'100vw', height:'100vh', background:'var(--bg)', display:'grid', gridTemplateRows:'1fr 1fr' }}>
-          <button onClick={() => setModal('image')}
-            style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:10, border:'none', background:'linear-gradient(135deg,#6366f1,#8b5cf6)', color:'#fff', cursor:'pointer', fontSize:18, fontWeight:800 }}>
-            <span style={{ fontSize:56 }}>📷</span>
-            影像辨識
-          </button>
-          <button
-            style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:10, border:'none', background:'linear-gradient(135deg,#0ea5e9,#0284c7)', color:'#fff', cursor:'pointer', fontSize:18, fontWeight:800, opacity:0.6 }}>
-            <span style={{ fontSize:56 }}>📊</span>
-            條碼辨識
-          </button>
+      <div style={{ width:'100vw', height:'100vh', background:'#f0f4f8', display:'flex', flexDirection:'column', padding:12, gap:10, boxSizing:'border-box' }}>
+        <style>{`
+          .dev-card { transition: transform 0.1s, box-shadow 0.1s; }
+          .dev-card:active { transform: scale(0.97); box-shadow: 0 2px 8px rgba(0,0,0,0.10) !important; }
+        `}</style>
+
+        {/* 影像辨識 */}
+        <button className="dev-card" onClick={() => setModal('image')} style={{
+          flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+          padding:'0 24px', border:'none', borderRadius:20, cursor:'pointer',
+          background:'linear-gradient(135deg,#b2f0e8,#80dfd4)',
+          boxShadow:'0 6px 20px rgba(128,223,212,0.35)',
+        }}>
+          <div style={{ width:44, height:44, borderRadius:12, background:'rgba(255,255,255,0.45)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:22, marginBottom:10 }}>📷</div>
+          <div style={{ fontSize:17, fontWeight:800, color:'#1a3a35', letterSpacing:0.2 }}>影像辨識</div>
+          <div style={{ fontSize:11, color:'#2d6b63', marginTop:3, lineHeight:1.4 }}>拍照自動辨識食材</div>
+        </button>
+
+        {/* 條碼辨識 */}
+        <button className="dev-card" style={{
+          flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+          padding:'0 24px', border:'none', borderRadius:20, cursor:'not-allowed',
+          background:'linear-gradient(135deg,#fdc9b4,#f9a88e)',
+          boxShadow:'0 6px 20px rgba(249,168,142,0.35)',
+        }}>
+          <div style={{ width:44, height:44, borderRadius:12, background:'rgba(255,255,255,0.45)', display:'flex', alignItems:'center', justifyContent:'center', marginBottom:10 }}>
+            <svg width="28" height="28" viewBox="0 0 48 48" fill="none">
+              <defs>
+                <linearGradient id="bcGrad" x1="0" y1="0" x2="48" y2="0" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stopColor="#FFA726"/>
+                  <stop offset="100%" stopColor="#FF1493"/>
+                </linearGradient>
+              </defs>
+              {/* Corner brackets */}
+              <path d="M4 14V8a2 2 0 0 1 2-2h6" stroke="url(#bcGrad)" strokeWidth="3" strokeLinecap="round"/>
+              <path d="M44 14V8a2 2 0 0 0-2-2h-6" stroke="url(#bcGrad)" strokeWidth="3" strokeLinecap="round"/>
+              <path d="M4 34v6a2 2 0 0 0 2 2h6" stroke="url(#bcGrad)" strokeWidth="3" strokeLinecap="round"/>
+              <path d="M44 34v6a2 2 0 0 1-2 2h-6" stroke="url(#bcGrad)" strokeWidth="3" strokeLinecap="round"/>
+              {/* Bars */}
+              <rect x="10" y="13" width="3.5" height="22" rx="1" fill="url(#bcGrad)"/>
+              <rect x="15.5" y="13" width="3.5" height="22" rx="1" fill="url(#bcGrad)"/>
+              <rect x="21" y="13" width="3.5" height="22" rx="1" fill="url(#bcGrad)"/>
+              <rect x="26.5" y="13" width="3.5" height="22" rx="1" fill="url(#bcGrad)"/>
+              <rect x="32" y="13" width="3.5" height="22" rx="1" fill="url(#bcGrad)"/>
+              <rect x="37.5" y="13" width="0.5" height="22" rx="0.5" fill="url(#bcGrad)"/>
+            </svg>
+          </div>
+          <div style={{ fontSize:17, fontWeight:800, color:'#4a1f0f', letterSpacing:0.2 }}>條碼掃描</div>
+        </button>
 
         {/* Modals */}
         {modal === 'image' && <ImageRecognizeModal deviceMode onClose={() => setModal(null)} onFill={d => { setPrefill(d); setModal('manual'); }} onDirectAdd={handleDirectAdd} />}
@@ -1144,7 +1182,7 @@ function ItemCard({ item, viewMode, onEdit, onQuantityChange, selectionMode, isS
       <div className="fridge-list-thumb" style={{ width:52, height:52, borderRadius:10, background:'var(--surface-2)', display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden', flexShrink:0, position:'relative' }}>
         {imgContent}
         {isZeroQty && (
-          <div style={{ position:'absolute', inset:0, background:'rgba(0,0,0,0.38)', display:'flex', alignItems:'center', justifyContent:'center', borderRadius:10 }}>
+          <div style={{ position:'absolute', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.38)', display:'flex', alignItems:'center', justifyContent:'center', borderRadius:10 }}>
             <span style={{ color:'#fff', fontSize:9, fontWeight:700 }}>已用完</span>
           </div>
         )}
@@ -1174,7 +1212,7 @@ function ItemCard({ item, viewMode, onEdit, onQuantityChange, selectionMode, isS
 }
 
 // ── Shared styles (used by modals) ───────────────────────────────
-export const overlay: React.CSSProperties = { position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', backdropFilter:'blur(4px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:200, padding:16 };
+export const overlay: React.CSSProperties = { position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', backdropFilter:'blur(4px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:200, padding:16 };
 export const modalStyle: React.CSSProperties = { background:'var(--surface)', borderRadius:20, padding:28, width:'100%', maxWidth:460, boxShadow:'0 24px 64px rgba(0,0,0,0.25)', animation:'fadeIn 0.15s ease' };
 export const modalTitle: React.CSSProperties = { fontSize:18, fontWeight:800, color:'var(--text)', margin:'0 0 20px' };
 export const cancelBtn: React.CSSProperties = { flex:1, padding:11, borderRadius:10, border:'1.5px solid var(--border)', background:'var(--surface-2)', color:'var(--text-2)', fontWeight:600, cursor:'pointer', fontSize:14 };

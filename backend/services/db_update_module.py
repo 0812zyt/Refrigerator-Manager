@@ -155,8 +155,20 @@ class DBUpdateModule:
     # B.2 資料寫入操作（建立使用者）
     # ----------------------------------------------------------------
     def create_user(self, username: str, user_id: str | None = None):
-        """建立新使用者，若未傳入 user_id 則自動產生 UUID"""
-        user_id = user_id or str(uuid.uuid4())
+        """建立新使用者，若未傳入 user_id 則自動使用 Admin Auth 註冊產生真實 UUID"""
+        if not user_id:
+            # 1. 自動於 Supabase Auth 系統中註冊該管理使用者，滿足外鍵約束
+            unique_suffix = uuid.uuid4().hex[:6]
+            test_email = f"{username}_{unique_suffix}@smartfridge.com"
+            auth_user = self.db.auth.admin.create_user({
+                "email": test_email,
+                "password": f"Password_{unique_suffix}!",
+                "email_confirm": True,
+                "user_metadata": {"username": username}
+            })
+            user_id = auth_user.user.id
+
+        # 2. 將使用者基本資料寫入 public.users 資料表
         result = (
             self.db.table("users")
             .insert({"user_id": user_id, "username": username})

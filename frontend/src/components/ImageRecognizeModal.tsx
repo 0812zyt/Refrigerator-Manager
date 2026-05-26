@@ -35,13 +35,18 @@ export default function ImageRecognizeModal({ onClose, onFill, deviceMode, onDir
   const [addState, setAddState] = useState<'idle' | 'adding' | 'done'>('idle');
   const [addedName, setAddedName] = useState('');
 
-  const fileRef   = useRef<HTMLInputElement>(null);
-  const videoRef  = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
+  const isLine = /Line/i.test(navigator.userAgent);
+
+  const fileRef    = useRef<HTMLInputElement>(null);
+  const captureRef = useRef<HTMLInputElement>(null);
+  const videoRef   = useRef<HTMLVideoElement>(null);
+  const canvasRef  = useRef<HTMLCanvasElement>(null);
+  const streamRef  = useRef<MediaStream | null>(null);
 
   const startCamera = useCallback(async () => {
     setCamError(''); setMode('camera');
+    // 主方案（LINE）：觸發 file input capture，不走 getUserMedia
+    if (isLine) return;
     try {
       let stream: MediaStream;
       try {
@@ -50,12 +55,11 @@ export default function ImageRecognizeModal({ onClose, onFill, deviceMode, onDir
         stream = await navigator.mediaDevices.getUserMedia({ video: true });
       }
       streamRef.current = stream;
-      // video element may not be mounted yet after setMode('camera') — assign in effect below
       if (videoRef.current) videoRef.current.srcObject = stream;
     } catch {
       setCamError('無法存取相機，請確認已授予相機權限，或改用上傳方式。');
     }
-  }, []);
+  }, [isLine]);
 
   // Assign stream to video element once it mounts (handles the setMode→render race)
   useEffect(() => {
@@ -65,7 +69,14 @@ export default function ImageRecognizeModal({ onClose, onFill, deviceMode, onDir
   }, [mode]);
 
   useEffect(() => {
-    if (deviceMode) startCamera();
+    if (deviceMode) {
+      if (isLine) {
+        // LINE 模式：直接觸發 capture input，不需要 getUserMedia
+        captureRef.current?.click();
+      } else {
+        startCamera();
+      }
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -155,16 +166,37 @@ export default function ImageRecognizeModal({ onClose, onFill, deviceMode, onDir
   if (deviceMode) {
     return (
       <div style={{ position:'fixed', top:0, left:0, right:0, bottom:0, zIndex:1000, background:'#000' }}>
+        {/* LINE capture input（隱藏，主方案） */}
+        <input ref={captureRef} type="file" accept="image/*" capture="environment" style={{ display:'none' }}
+          onChange={e => { handleFile(e.target.files?.[0] ?? null); e.target.value = ''; }} />
+
         {mode === 'camera' && (
           <>
-            <video ref={videoRef} autoPlay playsInline style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }} />
-            <canvas ref={canvasRef} style={{ display:'none' }} />
-            {camError && (
-              <div style={{ position:'absolute', bottom:80, left:16, right:16, background:'rgba(220,38,38,0.9)', color:'#fff', borderRadius:10, padding:'12px 16px', fontSize:14, textAlign:'center' }}>{camError}</div>
+            {isLine ? (
+              /* LINE 主方案：大按鈕觸發系統相機 */
+              <div style={{ width:'100%', height:'100%', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:20 }}>
+                <button onClick={() => captureRef.current?.click()}
+                  style={{ padding:'18px 40px', borderRadius:16, background:'#fff', color:'#1a1a1a', border:'none', fontSize:17, fontWeight:800, cursor:'pointer', boxShadow:'0 4px 20px rgba(255,255,255,0.2)' }}>
+                  📷 開啟相機拍照
+                </button>
+                {/* 備援 A：引導外部瀏覽器 */}
+                <div style={{ color:'rgba(255,255,255,0.5)', fontSize:12, textAlign:'center', padding:'0 32px', lineHeight:1.6 }}>
+                  若無法拍照，請點右上角 <strong style={{ color:'#fff' }}>···</strong> →「在瀏覽器中開啟」
+                </div>
+                <button onClick={onClose} style={{ position:'absolute', top:12, right:12, width:36, height:36, borderRadius:'50%', background:'rgba(255,255,255,0.15)', color:'#fff', border:'none', fontSize:18, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>✕</button>
+              </div>
+            ) : (
+              /* 一般瀏覽器：video stream */
+              <>
+                <video ref={videoRef} autoPlay playsInline style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }} />
+                <canvas ref={canvasRef} style={{ display:'none' }} />
+                {camError && (
+                  <div style={{ position:'absolute', bottom:80, left:16, right:16, background:'rgba(220,38,38,0.9)', color:'#fff', borderRadius:10, padding:'12px 16px', fontSize:14, textAlign:'center' }}>{camError}</div>
+                )}
+                <button onClick={capture} style={{ position:'absolute', bottom:28, left:'50%', transform:'translateX(-50%)', width:72, height:72, borderRadius:'50%', background:'#fff', border:'4px solid rgba(255,255,255,0.5)', cursor:'pointer', boxShadow:'0 4px 16px rgba(0,0,0,0.4)' }} />
+                <button onClick={onClose} style={{ position:'absolute', top:12, right:12, width:36, height:36, borderRadius:'50%', background:'rgba(0,0,0,0.5)', color:'#fff', border:'none', fontSize:18, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>✕</button>
+              </>
             )}
-            {/* Shutter button */}
-            <button onClick={capture} style={{ position:'absolute', bottom:28, left:'50%', transform:'translateX(-50%)', width:72, height:72, borderRadius:'50%', background:'#fff', border:'4px solid rgba(255,255,255,0.5)', cursor:'pointer', boxShadow:'0 4px 16px rgba(0,0,0,0.4)' }} />
-            <button onClick={onClose} style={{ position:'absolute', top:12, right:12, width:36, height:36, borderRadius:'50%', background:'rgba(0,0,0,0.5)', color:'#fff', border:'none', fontSize:18, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>✕</button>
           </>
         )}
 
@@ -242,10 +274,11 @@ export default function ImageRecognizeModal({ onClose, onFill, deviceMode, onDir
           <>
             <p style={{ color:'#64748b', fontSize:13, marginBottom:16 }}>選擇圖片來源，AI 自動辨識食材</p>
             <div style={{ display:'flex', gap:12 }}>
-              <button style={srcBtn('#7c3aed', '#faf5ff')} onClick={startCamera}>
+              {/* 主方案：LINE 用 capture input，一般用 getUserMedia */}
+              <button style={srcBtn('#7c3aed', '#faf5ff')} onClick={() => isLine ? captureRef.current?.click() : startCamera()}>
                 <span style={{ fontSize:28 }}>📸</span>
                 <div style={{ fontWeight:700 }}>開啟相機拍照</div>
-                <div style={{ fontSize:11, color:'#94a3b8' }}>使用裝置相機</div>
+                <div style={{ fontSize:11, color:'#94a3b8' }}>{isLine ? '系統相機' : '使用裝置相機'}</div>
               </button>
               <button style={srcBtn('#0ea5e9', '#f0f9ff')} onClick={() => fileRef.current?.click()}>
                 <span style={{ fontSize:28 }}>🖼️</span>
@@ -254,11 +287,16 @@ export default function ImageRecognizeModal({ onClose, onFill, deviceMode, onDir
               </button>
             </div>
             <input ref={fileRef} type="file" accept="image/*" style={{ display:'none' }} onChange={e => handleFile(e.target.files?.[0] ?? null)} />
+            <input ref={captureRef} type="file" accept="image/*" capture="environment" style={{ display:'none' }} onChange={e => { handleFile(e.target.files?.[0] ?? null); e.target.value = ''; }} />
+            {/* 備援 A：LINE 引導提示 */}
+            {isLine && <div style={{ background:'#fffbeb', border:'1px solid #fcd34d', borderRadius:10, padding:'10px 14px', marginTop:12, fontSize:12, color:'#92400e', lineHeight:1.6 }}>
+              若無法拍照，請點右上角 <strong>···</strong> →「在瀏覽器中開啟」
+            </div>}
             {camError && <div style={{ background:'#fff1f2', color:'#dc2626', borderRadius:10, padding:'12px 16px', marginTop:12, fontSize:14 }}>{camError}</div>}
           </>
         )}
 
-        {mode === 'camera' && (
+        {mode === 'camera' && !isLine && (
           <>
             <p style={{ color:'#64748b', fontSize:13, marginBottom:12 }}>對準食材，按下拍照</p>
             <div style={{ position:'relative', borderRadius:16, overflow:'hidden', background:'#000', lineHeight:0 }}>

@@ -1,6 +1,6 @@
 """
 資料更新與寫入邏輯模組 (DBUpdateModule)
-對應報告 3-3-2 B：資料更新與寫入邏輯
+資料更新與寫入邏輯
 
 流程：
   B.1 欄位檢查與預處理：檢查必要欄位，缺少非關鍵欄位時自動填入預設值
@@ -24,7 +24,7 @@ class DBUpdateModule:
     # ----------------------------------------------------------------
     def _fill_defaults(self, data: dict) -> dict:
         """
-        報告 3-3-2 B.1：欄位檢查與預處理
+        欄位檢查與預處理
         寫入前檢查必要欄位。若缺少非關鍵欄位（如效期），
         系統調用範本資料庫（ingredients 表）自動填入預設值。
         """
@@ -61,7 +61,7 @@ class DBUpdateModule:
     # ----------------------------------------------------------------
     def create_inventory(self, data: dict):
         """
-        報告 3-3-2 B.2：新增庫存
+        新增庫存
         寫入操作確保原子性。
         回傳 Supabase APIResponse。
         """
@@ -94,7 +94,7 @@ class DBUpdateModule:
     # ----------------------------------------------------------------
     def update_inventory(self, inventory_id: int, data: dict):
         """
-        報告 3-3-2 B.2：修改庫存
+        修改庫存
         只更新有提供的欄位。
         回傳 Supabase APIResponse，若無欄位可更新則回傳 None。
         """
@@ -170,7 +170,7 @@ class DBUpdateModule:
     # ----------------------------------------------------------------
     def _log_operation(self, operation: str, table: str, data: dict):
         """
-        報告 3-3-2 B.3：日誌記錄
+        日誌記錄
         寫入成功則於日誌資料表（System Log）新增操作軌跡。
 
         注意：目前資料庫中尚未建立 system_log 資料表。

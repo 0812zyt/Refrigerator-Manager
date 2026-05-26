@@ -1,6 +1,6 @@
 """
 排程器模組
-對應報告 3-4-1：排程器設計
+排程器設計
 
 採用基於時間的排程器（APScheduler），設定固定時間間隔（每日凌晨）
 自動喚醒執行掃描任務。
@@ -15,7 +15,7 @@ scheduler = BackgroundScheduler()
 def start_scheduler():
     """
     啟動排程器
-    報告 3-4-1：每日凌晨自動執行到期掃描。
+    每日凌晨自動執行到期掃描。
     """
     expiry = ExpiryModule()
 

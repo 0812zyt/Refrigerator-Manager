@@ -1,6 +1,6 @@
 """
 系統控制 API 路由
-對應報告 3-3-1：狀態控制與輸入處理（FSM 有限狀態機）
+系統控制與輸入處理（FSM 有限狀態機）
 
 系統狀態：
   - sleep: 休眠模式（預設）
@@ -8,13 +8,12 @@
 """
 
 import base64
-from io import BytesIO
-from typing import List, Optional
-from fastapi import APIRouter
 import httpx
+from typing import List, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from services.expiry_module import ExpiryModule
+import config
 
 RECOGNIZE_API = "https://lecturer-smartness-drudge.ngrok-free.app/api/v1/recognize"
 
@@ -30,8 +29,8 @@ class RecognizeResponse(BaseModel):
     confidence: Optional[float] = None
     low_confidence: bool
     validated: bool
-    closest_class: str
-    similarity_score: float
+    closest_class: Optional[str] = None
+    similarity_score: Optional[float] = None
     top5: List[Top5Item]
 
 router = APIRouter(
@@ -39,7 +38,8 @@ router = APIRouter(
     tags=["System 系統控制"]
 )
 
-# 報告 3-3-1: 系統狀態（保留相容性，不再阻塞後端）
+
+# 系統狀態控制（保留相容性，不再阻塞後端）
 system_state = {"status": "active"}
 
 
@@ -90,7 +90,7 @@ def get_system_status():
 def manual_scan_expiry():
     """
     手動觸發到期掃描（用於測試）
-    正式環境由 APScheduler 每日凌晨自動執行（報告 3-4-1）。
+    正式環境由 APScheduler 每日凌晨自動執行。
     """
     expiry = ExpiryModule()
     result = expiry.scan_and_update()
@@ -98,22 +98,75 @@ def manual_scan_expiry():
 
 
 # ----------------------------------------------------------------
-# 影像辨識相關端點
+# 影像辨識相關端點 (含外部影像辨識 API 轉發與 Fallback 機制)
 # ----------------------------------------------------------------
+class SetUrlRequest(BaseModel):
+    url: str
+
+@router.post("/set-recognition-url")
+def set_recognition_url(body: SetUrlRequest):
+    """
+    動態更新影像辨識 API 網址
+    當外部影像辨識伺服器重啟並產生新網址時（如使用 ngrok 免費版），開發者與測試端
+    可透過此端點動態調整後端指向的影像辨識伺服器網址，免去重置環境變數與重新部署後端的等待。
+    """
+    config.set_recognition_api_url(body.url)
+    return {
+        "status": "success",
+        "current_url": config.get_recognition_api_url(),
+        "message": "影像辨識 API 網址已成功動態更新！"
+    }
+
 @router.post("/recognize", response_model=RecognizeResponse)
 def recognize_food(request: RecognizeRequest):
     """
     影像辨識 API
-    對應報告 3-2-1：前端 -> 辨識模組 (Recognition API)
+    整合前端請求與後台影像辨識伺服器的中轉介面 (Recognition API)
     
-    支援組長提供的兩種最新回傳格式：
-    1. 成功辨識 (Validated / High Confidence)
-    2. 信心不足 (Low Confidence)，但提供 closest_class 及 top5 候選
-    
-    為了方便前端測試，利用 image_base64 的字串長度奇偶數來模擬兩種不同情境：
-    - 長度為偶數：回傳「成功辨識 (Validated / High Confidence)」
-    - 長度為奇數：回傳「信心不足 (Low Confidence)」
+    具備轉發與降級功能：
+    - 若設定了影像辨識 API 網址，會將圖片二進位轉發至外部的影像辨識服務。
+    - 若影像辨識服務未開啟、逾時或發生錯誤，將自動降級（Fallback）使用本機的模擬備援數據。
     """
+    rec_api_url = config.get_recognition_api_url()
+    if rec_api_url:
+        try:
+            # 1. 解碼前端傳遞過來的 base64 圖片，剔除 Data URL 前綴 (例如 data:image/jpeg;base64,)
+            base64_str = request.image_base64
+            if "," in base64_str:
+                base64_str = base64_str.split(",", 1)[1]
+            image_data = base64.b64decode(base64_str)
+            
+            # 2. 以 Multipart/form-data 格式包裝成 file 上傳
+            files = {"file": ("image.jpg", image_data, "image/jpeg")}
+            
+            # 3. 發送 POST 請求至外部影像辨識服務，限時 15 秒避免卡死後端
+            with httpx.Client(timeout=15.0) as client:
+                response = client.post(rec_api_url, files=files)
+                if response.status_code == 200:
+                    data = response.json()
+                    
+                    # 確保將資料對應回後端的 Pydantic Response 格式
+                    return RecognizeResponse(
+                        label=data.get("label"),
+                        confidence=data.get("confidence"),
+                        low_confidence=data.get("low_confidence", False),
+                        validated=data.get("validated", False),
+                        closest_class=data.get("closest_class"),
+                        similarity_score=data.get("similarity_score"),
+                        top5=[
+                            Top5Item(label=cand.get("label"), confidence=cand.get("confidence"))
+                            for cand in data.get("top5", [])
+                        ]
+                    )
+                else:
+                    print(f"[RECOGNITION WARNING] 影像辨識伺服器回傳狀態碼: {response.status_code}")
+        except Exception as e:
+            # 當連線失敗、超時、格式異常時，記錄警告並啟動 Fallback 降級處理
+            print(f"[RECOGNITION WARNING] 無法連接至辨識 API，已啟動自動降級模擬備援邏輯: {e}")
+
+    # ----------------------------------------------------------------
+    # 自動降級 / 模擬數據 (原有的 Mock 邏輯，保留做為備援)
+    # ----------------------------------------------------------------
     is_even = len(request.image_base64) % 2 == 0
 
     if is_even:
@@ -150,3 +203,7 @@ def recognize_food(request: RecognizeRequest):
                 Top5Item(label="cheese_plate", confidence=0.303018)
             ]
         )
+
+
+
+

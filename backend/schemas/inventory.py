@@ -1,7 +1,7 @@
 """
 使用者庫存 Schema
 對應資料庫 user_inventory 資料表。
-涵蓋新增、修改、回應三種格式，符合報告 3-2-2 之 Pydantic Schema 規範。
+涵蓋新增、修改、回應三種格式，符合 Pydantic Schema 規範。
 """
 
 from pydantic import BaseModel, ConfigDict
@@ -12,7 +12,7 @@ from datetime import date
 class InventoryCreate(BaseModel):
     """
     新增庫存請求格式
-    對應報告 3-3-2 B: 資料更新與寫入邏輯
+    資料更新與寫入邏輯
 
     - added_date: 若未提供，後端自動填入今天日期
     - expire_date: 若未提供且 custom_expire=False，

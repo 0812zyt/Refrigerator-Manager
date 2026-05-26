@@ -1,7 +1,7 @@
 """
 資料庫連線模組
 負責建立與管理 Supabase Client 連線。
-對應報告 3-2-1：後端主程式 -> 資料庫 (Database) 的連線層。
+後端主程式 -> 資料庫 (Database) 的連線層。
 """
 
 from supabase import create_client, Client

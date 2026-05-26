@@ -2,14 +2,14 @@
 智慧冰箱食材辨識與管理系統 - 後端 API
 The Design and Implementation of a Smart Refrigerator Food Identification and Managing System
 
-技術選型（報告 3-1-2）：
+技術選型：
   - Backend Language: Python 3.9+
   - Web Framework:   FastAPI（支援 ASGI 與 async/await）
   - Database:        PostgreSQL（Supabase）
   - Task Scheduler:  APScheduler
   - API Protocol:    RESTful（HTTP/1.1, JSON）
 
-系統架構（報告 3-1-1）：
+系統架構：
   - Client-Server 架構
   - RESTful API 設計，所有資源透過 URI 定位（/api/v1/...）
   - 無狀態通訊
@@ -28,7 +28,7 @@ from scheduler import start_scheduler, stop_scheduler
 async def lifespan(app: FastAPI):
     """
     應用程式生命週期管理
-    - 啟動時：啟動 APScheduler 排程器（報告 3-4-1）
+    - 啟動時：啟動 APScheduler 排程器
     - 關閉時：停止排程器
     """
     # Startup
@@ -58,7 +58,7 @@ app = FastAPI(
 )
 
 # ----------------------------------------------------------------
-# CORS 設定（報告 3-7：前端需透過 API 與後端通訊）
+# CORS 設定（允許前端通訊）
 # ----------------------------------------------------------------
 app.add_middleware(
     CORSMiddleware,
@@ -70,7 +70,7 @@ app.add_middleware(
 
 
 # ----------------------------------------------------------------
-# 全域錯誤處理（報告 3-2-2：統一 HTTP 狀態碼回應格式）
+# 全域錯誤處理（統一 HTTP 狀態碼回應格式）
 # - 200 OK / 201 Created：成功
 # - 400 Bad Request：格式錯誤
 # - 404 Not Found：查無資料
@@ -94,7 +94,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 
 # ----------------------------------------------------------------
-# 註冊路由（報告 3-2-2：API 介面規範）
+# 註冊路由（API 介面規範）
 # ----------------------------------------------------------------
 app.include_router(users.router)
 app.include_router(categories.router)

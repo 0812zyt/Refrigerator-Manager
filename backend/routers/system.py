@@ -7,10 +7,16 @@
   - active: 喚醒模式（門感測器觸發）
 """
 
+import base64
+from io import BytesIO
 from typing import List, Optional
 from fastapi import APIRouter
+import httpx
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from services.expiry_module import ExpiryModule
+
+RECOGNIZE_API = "https://lecturer-smartness-drudge.ngrok-free.app/api/v1/recognize"
 
 class RecognizeRequest(BaseModel):
     image_base64: str

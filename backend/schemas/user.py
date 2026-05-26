@@ -11,6 +11,14 @@ class UserCreate(BaseModel):
     username: str
     user_id: str | None = None
 
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "username": "TestUser"
+            }
+        }
+    }
+
 
 class UserResponse(BaseModel):
     """使用者回應格式"""

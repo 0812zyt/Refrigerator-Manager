@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { overlay, modalStyle, modalTitle, cancelBtn, saveBtn } from '../pages/DashboardPage';
 
 interface RecognizeResult {
@@ -11,6 +11,8 @@ interface RecognizeResult {
 interface Props {
   onClose: () => void;
   onFill: (data: { name: string; category?: string }) => void;
+  deviceMode?: boolean;
+  onDirectAdd?: (name: string, category?: string) => Promise<void>;
 }
 
 const CATEGORY_ICONS: Record<string, string> = {
@@ -18,8 +20,8 @@ const CATEGORY_ICONS: Record<string, string> = {
   調味料:'🧂', 冷凍食品:'🧊', 其他:'📦',
 };
 
-export default function ImageRecognizeModal({ onClose, onFill }: Props) {
-  const [mode, setMode]         = useState<'choose' | 'camera' | 'preview'>('choose');
+export default function ImageRecognizeModal({ onClose, onFill, deviceMode, onDirectAdd }: Props) {
+  const [mode, setMode]         = useState<'choose' | 'camera' | 'preview'>(deviceMode ? 'camera' : 'choose');
   const [imgSrc, setImgSrc]     = useState<string | null>(null);
   const [imgBase64, setImgBase64] = useState<string | null>(null);
   const [loading, setLoading]   = useState(false);
@@ -30,6 +32,8 @@ export default function ImageRecognizeModal({ onClose, onFill }: Props) {
   const [error, setError]       = useState('');
   const [camError, setCamError] = useState('');
   const [manualInput, setManualInput] = useState('');
+  const [addState, setAddState] = useState<'idle' | 'adding' | 'done'>('idle');
+  const [addedName, setAddedName] = useState('');
 
   const fileRef   = useRef<HTMLInputElement>(null);
   const videoRef  = useRef<HTMLVideoElement>(null);
@@ -39,12 +43,30 @@ export default function ImageRecognizeModal({ onClose, onFill }: Props) {
   const startCamera = useCallback(async () => {
     setCamError(''); setMode('camera');
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      } catch {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      }
       streamRef.current = stream;
+      // video element may not be mounted yet after setMode('camera') — assign in effect below
       if (videoRef.current) videoRef.current.srcObject = stream;
     } catch {
       setCamError('無法存取相機，請確認已授予相機權限，或改用上傳方式。');
     }
+  }, []);
+
+  // Assign stream to video element once it mounts (handles the setMode→render race)
+  useEffect(() => {
+    if (mode === 'camera' && videoRef.current && streamRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+    }
+  }, [mode]);
+
+  useEffect(() => {
+    if (deviceMode) startCamera();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const stopCamera = useCallback(() => {
@@ -74,7 +96,6 @@ export default function ImageRecognizeModal({ onClose, onFill }: Props) {
   };
 
   const reset = () => {
-    stopCamera();
     setImgSrc(null);
     setImgBase64(null);
     setResults(null);
@@ -82,7 +103,12 @@ export default function ImageRecognizeModal({ onClose, onFill }: Props) {
     setTop5(null);
     setLowConfidence(false);
     setClosestClass('');
-    setMode('choose');
+    if (deviceMode) {
+      startCamera();
+    } else {
+      stopCamera();
+      setMode('choose');
+    }
   };
   const handleClose = () => { stopCamera(); onClose(); };
 
@@ -125,6 +151,87 @@ export default function ImageRecognizeModal({ onClose, onFill }: Props) {
     padding:'20px 12px', borderRadius:14, border:`2px solid ${color}`,
     background:bg, cursor:'pointer', flex:1, textAlign:'center', fontSize:13, color,
   });
+
+  if (deviceMode) {
+    return (
+      <div style={{ position:'fixed', inset:0, zIndex:1000, background:'#000' }}>
+        {mode === 'camera' && (
+          <>
+            <video ref={videoRef} autoPlay playsInline style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }} />
+            <canvas ref={canvasRef} style={{ display:'none' }} />
+            {camError && (
+              <div style={{ position:'absolute', bottom:80, left:16, right:16, background:'rgba(220,38,38,0.9)', color:'#fff', borderRadius:10, padding:'12px 16px', fontSize:14, textAlign:'center' }}>{camError}</div>
+            )}
+            {/* Shutter button */}
+            <button onClick={capture} style={{ position:'absolute', bottom:28, left:'50%', transform:'translateX(-50%)', width:72, height:72, borderRadius:'50%', background:'#fff', border:'4px solid rgba(255,255,255,0.5)', cursor:'pointer', boxShadow:'0 4px 16px rgba(0,0,0,0.4)' }} />
+            <button onClick={onClose} style={{ position:'absolute', top:12, right:12, width:36, height:36, borderRadius:'50%', background:'rgba(0,0,0,0.5)', color:'#fff', border:'none', fontSize:18, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>✕</button>
+          </>
+        )}
+
+        {mode === 'preview' && (
+          <>
+            <img src={imgSrc!} alt="preview" style={{ width:'100%', height:'100%', objectFit:'contain', display:'block' }} />
+            {/* Top bar */}
+            <button onClick={reset} style={{ position:'absolute', top:12, left:12, padding:'8px 18px', borderRadius:20, background:'rgba(0,0,0,0.55)', color:'#fff', border:'none', fontSize:14, fontWeight:700, cursor:'pointer' }}>重新拍</button>
+            {/* Recognize button */}
+            {!results && !top5 && !loading && (
+              <button onClick={recognize} style={{ position:'absolute', bottom:28, left:'50%', transform:'translateX(-50%)', padding:'14px 36px', borderRadius:30, background:'linear-gradient(135deg,#7c3aed,#5b21b6)', color:'#fff', border:'none', fontSize:16, fontWeight:800, cursor:'pointer', boxShadow:'0 4px 16px rgba(0,0,0,0.4)', whiteSpace:'nowrap' }}>
+                🔍 開始辨識
+              </button>
+            )}
+            {loading && (
+              <div style={{ position:'absolute', bottom:28, left:'50%', transform:'translateX(-50%)', display:'flex', alignItems:'center', gap:10, padding:'12px 24px', background:'rgba(0,0,0,0.7)', borderRadius:24, color:'#fff', fontSize:14, whiteSpace:'nowrap' }}>
+                <div style={{ width:18, height:18, border:'3px solid rgba(255,255,255,0.3)', borderTopColor:'#fff', borderRadius:'50%', animation:'spin 0.8s linear infinite' }} />
+                AI 辨識中…
+              </div>
+            )}
+            {error && (
+              <div style={{ position:'absolute', bottom:80, left:16, right:16, background:'rgba(220,38,38,0.9)', color:'#fff', borderRadius:10, padding:'12px 16px', fontSize:14, textAlign:'center' }}>{error}</div>
+            )}
+            {/* Results overlay */}
+            {(results || (top5 && top5.length > 0)) && (
+              <div style={{ position:'absolute', top:52, left:0, right:0, bottom:0, background:'rgba(15,23,42,0.95)', display:'flex', flexDirection:'column' }}>
+                {addState === 'done' ? (
+                  <>
+                    <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:12 }}>
+                      <span style={{ fontSize:48 }}>✅</span>
+                      <div style={{ color:'#a7f3d0', fontWeight:700, fontSize:18 }}>成功新增</div>
+                      <div style={{ color:'#94a3b8', fontSize:14 }}>{addedName}</div>
+                    </div>
+                    <button onClick={onClose} style={{ flexShrink:0, width:'100%', padding:'14px', background:'rgba(255,255,255,0.08)', color:'#e2e8f0', border:'none', borderTop:'1px solid rgba(255,255,255,0.1)', fontSize:15, fontWeight:700, cursor:'pointer' }}>返回</button>
+                  </>
+                ) : (
+                  <>
+                    {lowConfidence && <div style={{ color:'#fbbf24', fontSize:12, padding:'10px 14px 4px', flexShrink:0 }}>⚠️ 信心度不足，請選擇候選項目</div>}
+                    <div style={{ flex:1, overflowY:'auto', padding:'14px 14px 8px' }}>
+                      {results && results.length > 0 && results.map((item, i) => (
+                        <button key={i} disabled={addState === 'adding'} onClick={async () => { if (!onDirectAdd) { onFill({ name: item.name, category: item.category }); return; } setAddState('adding'); setAddedName(item.name); await onDirectAdd(item.name, item.category); setAddState('done'); }}
+                          style={{ display:'block', width:'100%', padding:'12px 16px', background: addState === 'adding' ? 'rgba(16,185,129,0.08)' : 'rgba(16,185,129,0.15)', border:'1px solid rgba(16,185,129,0.3)', borderRadius:10, color:'#a7f3d0', fontWeight:700, fontSize:15, textAlign:'left', cursor: addState === 'adding' ? 'wait' : 'pointer', marginBottom:10 }}>
+                          {addState === 'adding' && addedName === item.name ? '新增中…' : `✅ ${item.name}`}
+                        </button>
+                      ))}
+                      {top5 && top5.length > 0 && (
+                        <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
+                          {top5.map((cand, idx) => (
+                            <button key={idx} disabled={addState === 'adding'} onClick={async () => { if (!onDirectAdd) { onFill({ name: cand.label }); return; } setAddState('adding'); setAddedName(cand.label); await onDirectAdd(cand.label); setAddState('done'); }}
+                              style={{ padding:'8px 14px', background: addState === 'adding' && addedName === cand.label ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.1)', border:'1px solid rgba(255,255,255,0.2)', borderRadius:10, color:'#e2e8f0', fontSize:13, cursor: addState === 'adding' ? 'wait' : 'pointer', whiteSpace:'nowrap' }}>
+                              {addState === 'adding' && addedName === cand.label ? '新增中…' : cand.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <button onClick={onClose} style={{ flexShrink:0, width:'100%', padding:'12px', background:'rgba(255,255,255,0.08)', color:'#94a3b8', border:'none', borderTop:'1px solid rgba(255,255,255,0.1)', fontSize:13, cursor:'pointer' }}>取消</button>
+                  </>
+                )}
+              </div>
+            )}
+          </>
+        )}
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
 
   return (
     <div style={overlay} onClick={handleClose}>

@@ -84,10 +84,11 @@ body {
 /* 橫向小螢幕（寬 ≤ 480px 且橫向）才套用緊湊樣式 */
 @media (max-width: 480px) and (orientation: landscape) {
   .fridge-profile-card { display: none !important; }
+  .fridge-home-date { display: none !important; }
   .fridge-cats { display: none !important; }
 
-  /* 3 欄超小卡片 */
-  .fridge-grid { grid-template-columns: repeat(3, 1fr) !important; gap: 5px !important; }
+  /* 4 欄超小卡片 */
+  .fridge-grid { grid-template-columns: repeat(4, 1fr) !important; gap: 5px !important; }
   .fridge-card { border-radius: 8px !important; }
   .fridge-card-img { height: 42px !important; }
   .fridge-card-img span { font-size: 22px !important; }
@@ -95,4 +96,11 @@ body {
   .fridge-card-name { font-size: 10px !important; }
   .fridge-card-days { font-size: 9px !important; }
   .fridge-card-date { display: none !important; }
+
+  /* 食譜卡片小螢幕緊湊 */
+  .fridge-recipe-card { border-radius: 8px !important; }
+  .fridge-recipe-card-img { height: 44px !important; font-size: 24px !important; }
+  .fridge-recipe-kcal { display: none !important; }
+  .fridge-recipe-card-body { padding: 4px 5px 5px !important; }
+  .fridge-recipe-card-name { font-size: 10px !important; margin-bottom: 2px !important; }
 }

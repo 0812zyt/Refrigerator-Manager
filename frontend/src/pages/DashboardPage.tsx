@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTheme } from '../context/ThemeContext';
-import { getInventory, deleteInventory, updateInventory, updateIngredient, getCategories, getIngredients, getPushVapidKey, subscribePush, unsubscribePush, wakeSystem, createInventory } from '../api/client';
+import { getInventory, deleteInventory, updateInventory, updateIngredient, getCategories, getIngredients, getPushVapidKey, subscribePush, unsubscribePush, wakeSystem, createInventory, createIngredient } from '../api/client';
+import { inferCategory } from '../utils/categoryInfer';
 import type { InventoryItem, Category, Ingredient, User } from '../api/types';
 import AddChoiceModal from '../components/AddChoiceModal';
 import AddItemModal from '../components/AddItemModal';
@@ -291,18 +292,18 @@ function RecipeView({ items, state, setState }: {
 
       <div className="fridge-grid" style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))', gap:12 }}>
         {recipes.map((r, i) => (
-          <div key={i} onClick={() => setSelected(r)}
+          <div key={i} onClick={() => setSelected(r)} className="fridge-recipe-card"
             style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:16, overflow:'hidden', boxShadow:'var(--shadow)', cursor:'pointer', transition:'transform 0.15s, box-shadow 0.15s' }}
             onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)'; (e.currentTarget as HTMLDivElement).style.boxShadow = 'var(--shadow-md)'; }}
             onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.transform = 'none'; (e.currentTarget as HTMLDivElement).style.boxShadow = 'var(--shadow)'; }}>
-            <div style={{ height:100, background:'var(--surface-2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:52, position:'relative' }}>
+            <div className="fridge-recipe-card-img" style={{ height:100, background:'var(--surface-2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:52, position:'relative' }}>
               {r.emoji}
               {r.calories > 0 && (
-                <span style={{ position:'absolute', bottom:6, right:6, fontSize:10, fontWeight:700, color:'#f97316', background:'rgba(255,255,255,0.85)', borderRadius:6, padding:'2px 6px' }}>{r.calories} kcal</span>
+                <span className="fridge-recipe-kcal" style={{ position:'absolute', bottom:6, right:6, fontSize:10, fontWeight:700, color:'#f97316', background:'rgba(255,255,255,0.85)', borderRadius:6, padding:'2px 6px' }}>{r.calories} kcal</span>
               )}
             </div>
-            <div style={{ padding:'10px 12px 12px' }}>
-              <div style={{ fontWeight:700, fontSize:14, color:'var(--text)', marginBottom:6 }}>{r.name}</div>
+            <div className="fridge-recipe-card-body" style={{ padding:'10px 12px 12px' }}>
+              <div className="fridge-recipe-card-name" style={{ fontWeight:700, fontSize:14, color:'var(--text)', marginBottom:6 }}>{r.name}</div>
               {r.used.length > 0 && (
                 <div style={{ fontSize:10, color:'#22c55e' }}>✓ {r.used.join('、')}</div>
               )}
@@ -521,7 +522,7 @@ export default function DashboardPage({ user, onLogout }: Props) {
   const [toast, setToast] = useState<string | null>(null);
   const [multiDeleteConfirm, setMultiDeleteConfirm] = useState(false);
   const [batchStockConfirm, setBatchStockConfirm] = useState(false);
-  const [activeNav, setActiveNav] = useState<'home'|'inventory'|'settings'|'cart'>('inventory');
+  const [activeNav, setActiveNav] = useState<'home'|'inventory'|'settings'|'cart'>('home');
   const [prevNav, setPrevNav] = useState<'home'|'inventory'|'settings'>('inventory');
   const goCart = () => { setPrevNav(activeNav as 'home'|'inventory'|'settings'); setActiveNav('cart'); };
   const backFromCart = () => setActiveNav(prevNav);
@@ -677,10 +678,49 @@ export default function DashboardPage({ user, onLogout }: Props) {
 
   const handleDelete = async (id: number) => { await deleteInventory(id); setDeleteConfirm(null); loadData(); };
 
+  const handleDirectAdd = async (name: string, category?: string) => {
+    let ingId: number;
+    const existing = allIngredients.find(i => i.name.toLowerCase() === name.toLowerCase());
+    if (existing) {
+      ingId = existing.ingredient_id;
+    } else {
+      const catEntry = category
+        ? (categories.find(c => c.category_name === category) ?? await inferCategory(name, categories))
+        : await inferCategory(name, categories);
+      const created = await createIngredient({ name, category_id: catEntry?.category_id });
+      ingId = created.ingredient_id;
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    await createInventory({ user_id: user.user_id, ingredient_id: ingId, quantity: 1, added_date: today });
+    loadData();
+  };
+
   const filtered = items.filter(i =>
     (activeCategory === '全部' || i.categoryName === activeCategory) &&
     (!searchTerm || (i.ingredient_name ?? '').toLowerCase().includes(searchTerm.toLowerCase()))
   );
+  // ── 480×320 橫向裝置模式：只顯示兩個操作按鈕 ────────────────────
+  if (isSmallScreen) {
+    return (
+      <div style={{ width:'100vw', height:'100vh', background:'var(--bg)', display:'grid', gridTemplateRows:'1fr 1fr' }}>
+          <button onClick={() => setModal('image')}
+            style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:10, border:'none', background:'linear-gradient(135deg,#6366f1,#8b5cf6)', color:'#fff', cursor:'pointer', fontSize:18, fontWeight:800 }}>
+            <span style={{ fontSize:56 }}>📷</span>
+            影像辨識
+          </button>
+          <button
+            style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:10, border:'none', background:'linear-gradient(135deg,#0ea5e9,#0284c7)', color:'#fff', cursor:'pointer', fontSize:18, fontWeight:800, opacity:0.6 }}>
+            <span style={{ fontSize:56 }}>📊</span>
+            條碼辨識
+          </button>
+
+        {/* Modals */}
+        {modal === 'image' && <ImageRecognizeModal deviceMode onClose={() => setModal(null)} onFill={d => { setPrefill(d); setModal('manual'); }} onDirectAdd={handleDirectAdd} />}
+        {modal === 'manual' && <AddItemModal userId={user.user_id} prefill={prefill} cachedCategories={categories} cachedIngredients={allIngredients} onClose={() => { setModal(null); setPrefill(null); }} onAdded={loadData} />}
+      </div>
+    );
+  }
+
   return (
     <div style={{ minHeight:'100vh', background:'var(--bg)' }}>
 
@@ -768,7 +808,7 @@ export default function DashboardPage({ user, onLogout }: Props) {
           const days = ['週日','週一','週二','週三','週四','週五','週六'];
           return (
             <>
-              <div style={{ marginBottom:20 }}>
+              <div className="fridge-home-date" style={{ marginBottom:20 }}>
                 <div style={{ fontSize:22, fontWeight:800, color:'var(--text)' }}>
                   {now.getFullYear()}年{now.getMonth()+1}月{now.getDate()}日
                 </div>
@@ -935,7 +975,7 @@ export default function DashboardPage({ user, onLogout }: Props) {
       {/* ── Bottom Nav ───────────────────────────────────────────── */}
       <nav className="fridge-nav" style={{ position:'fixed', bottom:0, left:0, right:0, height:64, background:'var(--header-bg)', borderTop:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'space-around', zIndex:100, boxShadow:'0 -2px 12px rgba(0,0,0,0.06)', padding:'0 16px' }}>
         {([
-          { key:'home', icon:'🏠', label:'主畫面' },
+          { key:'home', icon:'🍽️', label:'食譜' },
           { key:'inventory', icon:'🧊', label:'食材' },
           { key:'settings', icon:'⚙️', label:'設定' },
         ] as const).map(({ key, icon, label }) => {

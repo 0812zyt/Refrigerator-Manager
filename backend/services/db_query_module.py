@@ -77,23 +77,36 @@ class DBQueryModule:
     def query_inventory_all(self, user_id: str = None):
         """
         查詢庫存列表（可選依 user_id 篩選）
-        統一透過 service 層存取資料庫。
+        統一透過 service 層存取資料庫，並關聯 ingredients 取得真實食材名稱。
         """
-        query = self.db.table("user_inventory").select("*")
+        query = self.db.table("user_inventory").select("*, ingredients(name)")
         if user_id is not None:
             query = query.eq("user_id", user_id)
         result = query.execute()
+        
+        # 轉換內嵌關聯欄位到平坦欄位，對應 InventoryResponse Schema
+        for item in result.data:
+            ing_info = item.get("ingredients")
+            if isinstance(ing_info, dict):
+                item["ingredient_name"] = ing_info.get("name")
         return result.data
 
     def query_inventory_by_id(self, inventory_id: int):
-        """查詢單一庫存項目"""
+        """查詢單一庫存項目，並關聯 ingredients 取得真實食材名稱"""
         result = (
             self.db.table("user_inventory")
-            .select("*")
+            .select("*, ingredients(name)")
             .eq("inventory_id", inventory_id)
             .execute()
         )
-        return result.data[0] if result.data else None
+        if not result.data:
+            return None
+        
+        item = result.data[0]
+        ing_info = item.get("ingredients")
+        if isinstance(ing_info, dict):
+            item["ingredient_name"] = ing_info.get("name")
+        return item
 
     def search_inventory(self, user_id: str, keyword: str):
         """

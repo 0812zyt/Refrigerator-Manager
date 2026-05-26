@@ -100,7 +100,10 @@ def create_inventory(item: InventoryCreate):
     if not result.data:
         raise HTTPException(status_code=500, detail="Failed to create inventory item")
 
-    return result.data[0]
+    # 重新查詢已關聯食材名稱的完整物件並回傳
+    query_module = DBQueryModule()
+    full_item = query_module.query_inventory_by_id(result.data[0]["inventory_id"])
+    return full_item
 
 
 # ----------------------------------------------------------------
@@ -128,7 +131,9 @@ def update_inventory(inventory_id: int, item: InventoryUpdate):
     if not result.data:
         raise HTTPException(status_code=500, detail="Failed to update inventory item")
 
-    return result.data[0]
+    # 重新查詢已關聯食材名稱的完整物件並回傳
+    full_item = query_module.query_inventory_by_id(inventory_id)
+    return full_item
 
 
 # ----------------------------------------------------------------

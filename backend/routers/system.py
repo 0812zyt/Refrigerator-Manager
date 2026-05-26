@@ -10,7 +10,7 @@
 import base64
 import httpx
 from typing import List, Optional
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from services.expiry_module import ExpiryModule
 import config
@@ -96,110 +96,71 @@ def manual_scan_expiry():
 
 
 # ----------------------------------------------------------------
-# 影像辨識相關端點 (含外部影像辨識 API 轉發與 Fallback 機制)
+# 影像辨識相關端點 (串接真實影像辨識服務，拒絕虛假模擬備援)
 # ----------------------------------------------------------------
-class SetUrlRequest(BaseModel):
-    url: str
-
-@router.post("/set-recognition-url")
-def set_recognition_url(body: SetUrlRequest):
-    """
-    動態更新影像辨識 API 網址
-    當外部影像辨識伺服器重啟並產生新網址時（如使用 ngrok 免費版），開發者與測試端
-    可透過此端點動態調整後端指向的影像辨識伺服器網址，免去重置環境變數與重新部署後端的等待。
-    """
-    config.set_recognition_api_url(body.url)
-    return {
-        "status": "success",
-        "current_url": config.get_recognition_api_url(),
-        "message": "影像辨識 API 網址已成功動態更新！"
-    }
 
 @router.post("/recognize", response_model=RecognizeResponse)
 def recognize_food(request: RecognizeRequest):
     """
     影像辨識 API
-    整合前端請求與後台影像辨識伺服器的中轉介面 (Recognition API)
-    
-    具備轉發與降級功能：
-    - 若設定了影像辨識 API 網址，會將圖片二進位轉發至外部的影像辨識服務。
-    - 若影像辨識服務未開啟、逾時或發生錯誤，將自動降級（Fallback）使用本機的模擬備援數據。
+    將前端傳遞的圖片 Base64 資料轉發至外部影像辨識伺服器進行辨識。
+    若辨識伺服器未設定、斷線或發生錯誤，將回傳標準 HTTP 錯誤，拒絕任何模擬備援數據。
     """
     rec_api_url = config.get_recognition_api_url()
-    if rec_api_url:
-        try:
-            # 1. 解碼前端傳遞過來的 base64 圖片，剔除 Data URL 前綴 (例如 data:image/jpeg;base64,)
-            base64_str = request.image_base64
-            if "," in base64_str:
-                base64_str = base64_str.split(",", 1)[1]
-            image_data = base64.b64decode(base64_str)
-            
-            # 2. 以 Multipart/form-data 格式包裝成 file 上傳
-            files = {"file": ("image.jpg", image_data, "image/jpeg")}
-            
-            # 3. 發送 POST 請求至外部影像辨識服務，限時 15 秒避免卡死後端
-            with httpx.Client(timeout=15.0) as client:
-                response = client.post(rec_api_url, files=files)
-                if response.status_code == 200:
-                    data = response.json()
-                    
-                    # 確保將資料對應回後端的 Pydantic Response 格式
-                    return RecognizeResponse(
-                        label=data.get("label"),
-                        confidence=data.get("confidence"),
-                        low_confidence=data.get("low_confidence", False),
-                        validated=data.get("validated", False),
-                        closest_class=data.get("closest_class"),
-                        similarity_score=data.get("similarity_score"),
-                        top5=[
-                            Top5Item(label=cand.get("label"), confidence=cand.get("confidence"))
-                            for cand in data.get("top5", [])
-                        ]
-                    )
-                else:
-                    print(f"[RECOGNITION WARNING] 影像辨識伺服器回傳狀態碼: {response.status_code}")
-        except Exception as e:
-            # 當連線失敗、超時、格式異常時，記錄警告並啟動 Fallback 降級處理
-            print(f"[RECOGNITION WARNING] 無法連接至辨識 API，已啟動自動降級模擬備援邏輯: {e}")
-
-    # ----------------------------------------------------------------
-    # 自動降級 / 模擬數據 (原有的 Mock 邏輯，保留做為備援)
-    # ----------------------------------------------------------------
-    is_even = len(request.image_base64) % 2 == 0
-
-    if is_even:
-        # 成功辨識 (High Confidence)
-        return RecognizeResponse(
-            label="tacos",
-            confidence=0.893653,
-            low_confidence=False,
-            validated=True,
-            closest_class="tacos",
-            similarity_score=0.893653,
-            top5=[
-                Top5Item(label="tacos", confidence=0.893653),
-                Top5Item(label="chicken_quesadilla", confidence=0.6126),
-                Top5Item(label="nachos", confidence=0.564489),
-                Top5Item(label="huevos_rancheros", confidence=0.510663),
-                Top5Item(label="falafel", confidence=0.477136)
-            ]
+    if not rec_api_url:
+        raise HTTPException(
+            status_code=503,
+            detail="影像辨識服務未設定，請確認環境變數 RECOGNITION_API_URL 是否配置妥當"
         )
-    else:
-        # 信心不足 (Low Confidence)
-        return RecognizeResponse(
-            label=None,
-            confidence=None,
-            low_confidence=True,
-            validated=False,
-            closest_class="Banana",
-            similarity_score=0.691783,
-            top5=[
-                Top5Item(label="Banana", confidence=0.691783),
-                Top5Item(label="Banana Lady Finger", confidence=0.589211),
-                Top5Item(label="Pineapple", confidence=0.313795),
-                Top5Item(label="churros", confidence=0.312855),
-                Top5Item(label="cheese_plate", confidence=0.303018)
-            ]
+
+    try:
+        # 1. 解碼前端傳遞過來的 base64 圖片，剔除 Data URL 前綴 (例如 data:image/jpeg;base64,)
+        base64_str = request.image_base64
+        if "," in base64_str:
+            base64_str = base64_str.split(",", 1)[1]
+        image_data = base64.b64decode(base64_str)
+        
+        # 2. 以 Multipart/form-data 格式包裝成 file 上傳
+        files = {"file": ("image.jpg", image_data, "image/jpeg")}
+        
+        # 3. 發送 POST 請求至外部影像辨識服務，限時 15 秒避免卡死後端
+        with httpx.Client(timeout=15.0) as client:
+            response = client.post(rec_api_url, files=files)
+            if response.status_code == 200:
+                data = response.json()
+                
+                # 確保將資料對應回後端的 Pydantic Response 格式
+                return RecognizeResponse(
+                    label=data.get("label"),
+                    confidence=data.get("confidence"),
+                    low_confidence=data.get("low_confidence", False),
+                    validated=data.get("validated", False),
+                    closest_class=data.get("closest_class"),
+                    similarity_score=data.get("similarity_score"),
+                    top5=[
+                        Top5Item(label=cand.get("label"), confidence=cand.get("confidence"))
+                        for cand in data.get("top5", [])
+                    ]
+                )
+            else:
+                print(f"[RECOGNITION ERROR] 影像辨識伺服器回傳錯誤狀態碼: {response.status_code}")
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"影像辨識伺服器異常，回傳狀態碼: {response.status_code}"
+                )
+    except httpx.RequestError as e:
+        print(f"[RECOGNITION ERROR] 連線至辨識服務失敗: {e}")
+        raise HTTPException(
+            status_code=502,
+            detail="無法連線至影像辨識服務，請確認辨識伺服器已啟動且網路正常"
+        )
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        print(f"[RECOGNITION ERROR] 影像辨識處理異常: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"影像辨識處理失敗: {str(e)}"
         )
 
 

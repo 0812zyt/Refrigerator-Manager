@@ -522,7 +522,7 @@ export default function DashboardPage({ user, onLogout }: Props) {
   const [toast, setToast] = useState<string | null>(null);
   const [multiDeleteConfirm, setMultiDeleteConfirm] = useState(false);
   const [batchStockConfirm, setBatchStockConfirm] = useState(false);
-  const [activeNav, setActiveNav] = useState<'home'|'inventory'|'settings'|'cart'>('home');
+  const [activeNav, setActiveNav] = useState<'home'|'inventory'|'settings'|'cart'>('inventory');
   const [prevNav, setPrevNav] = useState<'home'|'inventory'|'settings'>('inventory');
   const goCart = () => { setPrevNav(activeNav as 'home'|'inventory'|'settings'); setActiveNav('cart'); };
   const backFromCart = () => setActiveNav(prevNav);

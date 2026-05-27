@@ -138,18 +138,21 @@ export default function ImageRecognizeModal({ onClose, onFill, deviceMode, onDir
         body: JSON.stringify({ image_base64: imgBase64 }),
       });
       const data = await res.json();
-      
-      setTop5(data.top5 || []);
-      setLowConfidence(data.low_confidence);
-      setClosestClass(data.closest_class);
 
-      if (data.validated && data.label) {
-        setResults([{ name: data.label, quantity: '', note: '' }]);
-      } else if (data.low_confidence) {
-        // 信心不足，但有候選清單，不直接報錯，而是讓用戶從下方選單選取
-        setResults([]); 
+      if (!res.ok) {
+        setError(data.detail ?? '辨識服務暫時無法使用，請稍後再試。');
       } else {
-        setError('辨識信心度不足，請手動輸入或重新拍照。');
+        setTop5(data.top5 || []);
+        setLowConfidence(data.low_confidence);
+        setClosestClass(data.closest_class);
+
+        if (data.validated && data.label) {
+          setResults([{ name: data.label, quantity: '', note: '' }]);
+        } else if (data.low_confidence) {
+          setResults([]);
+        } else {
+          setError('辨識信心度不足，請手動輸入或重新拍照。');
+        }
       }
     } catch {
       setError('辨識失敗，請確認圖片清晰或再試一次。');

@@ -6,33 +6,30 @@ client = TestClient(app)
 
 print("--- [TEST] Recognition Router Function Tests ---")
 
-# 1. 測試動態設定 URL 端點
-print("\n[TEST 1] Testing dynamic recognition API URL setup...")
-test_url = "https://test-ngrok-url.ngrok-free.dev/api/v1/recognize"
+# 1. 確保 /set-recognition-url 已經被安全移除（應回傳 404）
+print("\n[TEST 1] Verifying that /set-recognition-url has been removed (should return 404)...")
 response = client.post(
     "/api/v1/system/set-recognition-url",
-    json={"url": test_url}
+    json={"url": "https://some-url.com"}
 )
-assert response.status_code == 200, f"Setup URL failed: {response.text}"
-data = response.json()
-print(f"Response: {data}")
-assert data["current_url"] == test_url
-assert config.get_recognition_api_url() == test_url
-print("SUCCESS: Dynamic recognition URL set successfully!")
+assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+print("SUCCESS: Endpoint /set-recognition-url is successfully removed!")
 
-# 2. 測試 Base64 解碼 (過濾 data:image 前綴) 與 Fallback 機制
-print("\n[TEST 2] Testing Base64 image with prefix & Fallback backup...")
-# 給予一個帶有 Canvas 前綴的 base64 字串，因 test_url 無法連接，此時應觸發 Fallback
-mock_base64_with_prefix = "data:image/jpeg;base64,aGVsbG8="  # 'hello' base64, len 5 (odd) -> Fallback to Banana (信心不足)
+# 2. 測試 Base64 解碼與真實連線報錯（無模擬備援數據）
+print("\n[TEST 2] Testing real image request (should report honest HTTP error since test domain is offline)...")
+# 設定一個斷線或無效的 API 網址來測試離線狀態
+config.set_recognition_api_url("https://lecturer-smartness-drudge-offline-test.ngrok-free.dev/api/v1/recognize")
+mock_base64_with_prefix = "data:image/jpeg;base64,aGVsbG8="
+
 response = client.post(
     "/api/v1/system/recognize",
     json={"image_base64": mock_base64_with_prefix}
 )
-assert response.status_code == 200, f"Recognition request failed: {response.text}"
-data = response.json()
-print(f"Response (Fallback): {data}")
-assert data["low_confidence"] is True
-assert data["closest_class"] == "Banana"
-print("SUCCESS: Base64 decoding & Fallback backup verification successful!")
+# 因對接的測試網址離線/無效，應回傳 502 Bad Gateway 錯誤而非虛假數據
+print(f"Response Status: {response.status_code}")
+print(f"Response JSON: {response.json()}")
+assert response.status_code == 502, f"Expected 502 Bad Gateway, got {response.status_code}"
+assert "無法連線" in response.json()["detail"] or "異常" in response.json()["detail"]
+print("SUCCESS: Real HTTP error reported honestly without simulated mock fallbacks!")
 
 print("\n--- [TEST] All local tests passed successfully! ---")

@@ -128,58 +128,62 @@ class ExpiryModule:
         if not expired_items and not urgent_items:
             return
 
-        from services.push_service import PushService
-        push = PushService()
+        try:
+            from services.push_service import PushService
+            push = PushService()
 
-        # 依 user_id 彙整項目 (取出關聯 ingredients 中的真實食材名稱)
-        user_data: dict = {}
-        for item in expired_items:
-            uid = item.get("user_id")
-            if uid:
-                user_data.setdefault(uid, {"expired": [], "urgent": []})
-                ing_info = item.get("ingredients")
-                ing_name = ing_info.get("name") if isinstance(ing_info, dict) else None
-                user_data[uid]["expired"].append(ing_name or "食材")
-        for item in urgent_items:
-            uid = item.get("user_id")
-            if uid:
-                user_data.setdefault(uid, {"expired": [], "urgent": []})
-                ing_info = item.get("ingredients")
-                ing_name = ing_info.get("name") if isinstance(ing_info, dict) else None
-                user_data[uid]["urgent"].append(ing_name or "食材")
+            # 依 user_id 彙整項目 (取出關聯 ingredients 中的真實食材名稱)
+            user_data: dict = {}
+            for item in expired_items:
+                uid = item.get("user_id")
+                if uid:
+                    user_data.setdefault(uid, {"expired": [], "urgent": []})
+                    ing_info = item.get("ingredients")
+                    ing_name = ing_info.get("name") if isinstance(ing_info, dict) else None
+                    user_data[uid]["expired"].append(ing_name or "食材")
+            for item in urgent_items:
+                uid = item.get("user_id")
+                if uid:
+                    user_data.setdefault(uid, {"expired": [], "urgent": []})
+                    ing_info = item.get("ingredients")
+                    ing_name = ing_info.get("name") if isinstance(ing_info, dict) else None
+                    user_data[uid]["urgent"].append(ing_name or "食材")
 
-        # 取出所有訂閱，以 user_id 為 key
-        subs_result = self.db.table("push_subscriptions").select("*").execute()
-        sub_by_user: dict = {}
-        for s in subs_result.data:
-            sub_by_user.setdefault(s["user_id"], []).append(s)
+            # 取出所有訂閱，以 user_id 為 key
+            subs_result = self.db.table("push_subscriptions").select("*").execute()
+            sub_by_user: dict = {}
+            for s in subs_result.data:
+                sub_by_user.setdefault(s["user_id"], []).append(s)
 
-        for uid, data in user_data.items():
-            subs = sub_by_user.get(uid, [])
-            if not subs:
-                continue
+            for uid, data in user_data.items():
+                subs = sub_by_user.get(uid, [])
+                if not subs:
+                    continue
 
-            parts = []
-            if data["expired"]:
-                names = "、".join(data["expired"][:3])
-                parts.append(f"{names} 已過期")
-            if data["urgent"]:
-                names = "、".join(data["urgent"][:3])
-                parts.append(f"{names} 即將到期")
+                parts = []
+                if data["expired"]:
+                    names = "、".join(data["expired"][:3])
+                    parts.append(f"{names} 已過期")
+                if data["urgent"]:
+                    names = "、".join(data["urgent"][:3])
+                    parts.append(f"{names} 即將到期")
 
-            body = "；".join(parts)
+                body = "；".join(parts)
 
-            for sub in subs:
-                ok = push.send(
-                    subscription_info={
-                        "endpoint": sub["endpoint"],
-                        "keys": {"p256dh": sub["p256dh"], "auth": sub["auth"]},
-                    },
-                    title="🧊 冰箱管家提醒",
-                    body=body,
-                )
-                # 訂閱失效時清除記錄
-                if not ok:
-                    self.db.table("push_subscriptions").delete().eq(
-                        "endpoint", sub["endpoint"]
-                    ).execute()
+                for sub in subs:
+                    ok = push.send(
+                        subscription_info={
+                            "endpoint": sub["endpoint"],
+                            "keys": {"p256dh": sub["p256dh"], "auth": sub["auth"]},
+                        },
+                        title="🧊 冰箱管家提醒",
+                        body=body,
+                    )
+                    # 訂閱失效時清除記錄
+                    if not ok:
+                        self.db.table("push_subscriptions").delete().eq(
+                            "endpoint", sub["endpoint"]
+                        ).execute()
+        except Exception as e:
+            print(f"[PUSH WARNING] Failed to send push notifications: {e}")
+

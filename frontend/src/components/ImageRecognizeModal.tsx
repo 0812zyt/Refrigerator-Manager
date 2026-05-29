@@ -340,7 +340,7 @@ export default function ImageRecognizeModal({ onClose, onFill, deviceMode, onDir
                 {results && results.length > 0 && (
                   <>
                     <p style={{ fontWeight:700, color:'#059669', fontSize:14, marginBottom:10, display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span>✅ AI 辨識成功！</span>
+                      <span>辨識結果</span>
                     </p>
                     {results.map((item, i) => (
                       <div key={i} style={{ background:'#ecfdf5', borderRadius:12, padding:'14px', marginBottom:12, border:'1.5px solid #a7f3d0', boxShadow: '0 2px 8px rgba(16,185,129,0.05)' }}>
@@ -376,7 +376,7 @@ export default function ImageRecognizeModal({ onClose, onFill, deviceMode, onDir
                 {top5 && top5.length > 0 && (
                   <div style={{ marginTop: 14 }}>
                     <p style={{ fontWeight:700, color:'#475569', fontSize:13, marginBottom:10, display:'flex', alignItems:'center', gap:6 }}>
-                      <span>📊 AI 預測候選清單 (Top 5)</span>
+                      <span>📊 候選清單 </span>
                     </p>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                       {top5.map((cand, idx) => {

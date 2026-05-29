@@ -4,6 +4,7 @@ import { getInventory, deleteInventory, updateInventory, updateIngredient, getCa
 import { inferCategory } from '../utils/categoryInfer';
 import type { InventoryItem, Category, Ingredient, User } from '../api/types';
 import AddChoiceModal from '../components/AddChoiceModal';
+import BarcodeScanModal from '../components/BarcodeScanModal';
 import AddItemModal from '../components/AddItemModal';
 import ImageRecognizeModal from '../components/ImageRecognizeModal';
 import EditItemModal from '../components/EditItemModal';
@@ -34,7 +35,7 @@ const getDaysLeft = (d: string) => {
 };
 
 
-type ModalState = null | 'choice' | 'manual' | 'image' | 'edit';
+type ModalState = null | 'choice' | 'manual' | 'image' | 'barcode' | 'edit';
 interface EnrichedItem extends InventoryItem { categoryName?: string; }
 
 
@@ -715,15 +716,34 @@ export default function DashboardPage({ user, onLogout }: Props) {
           background:'linear-gradient(135deg,#b2f0e8,#80dfd4)',
           boxShadow:'0 6px 20px rgba(128,223,212,0.35)',
         }}>
-          <div style={{ width:44, height:44, borderRadius:12, background:'rgba(255,255,255,0.45)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:22, marginBottom:10 }}>📷</div>
+          <div style={{ width:44, height:44, borderRadius:12, background:'rgba(255,255,255,0.45)', display:'flex', alignItems:'center', justifyContent:'center', marginBottom:10 }}>
+            <svg width="28" height="28" viewBox="0 0 64 64" fill="none">
+              <defs>
+                <linearGradient id="camGrad" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stopColor="#00e5ff"/>
+                  <stop offset="100%" stopColor="#2962ff"/>
+                </linearGradient>
+              </defs>
+              {/* Camera body */}
+              <rect x="4" y="20" width="56" height="36" rx="6" stroke="url(#camGrad)" strokeWidth="3" fill="none"/>
+              {/* Top bump / viewfinder */}
+              <path d="M22 20v-6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v6" stroke="url(#camGrad)" strokeWidth="3" fill="none" strokeLinecap="round"/>
+              {/* Flash square */}
+              <rect x="9" y="25" width="8" height="6" rx="1.5" stroke="url(#camGrad)" strokeWidth="2.2" fill="none"/>
+              {/* Lens outer circle */}
+              <circle cx="32" cy="38" r="12" stroke="url(#camGrad)" strokeWidth="3" fill="none"/>
+              {/* Lens inner circle */}
+              <circle cx="32" cy="38" r="5" stroke="url(#camGrad)" strokeWidth="2.2" fill="none"/>
+            </svg>
+          </div>
           <div style={{ fontSize:17, fontWeight:800, color:'#1a3a35', letterSpacing:0.2 }}>影像辨識</div>
           <div style={{ fontSize:11, color:'#2d6b63', marginTop:3, lineHeight:1.4 }}>拍照自動辨識食材</div>
         </button>
 
         {/* 條碼辨識 */}
-        <button className="dev-card" style={{
+        <button className="dev-card" onClick={() => setModal('barcode')} style={{
           flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
-          padding:'0 24px', border:'none', borderRadius:20, cursor:'not-allowed',
+          padding:'0 24px', border:'none', borderRadius:20, cursor:'pointer',
           background:'linear-gradient(135deg,#fdc9b4,#f9a88e)',
           boxShadow:'0 6px 20px rgba(249,168,142,0.35)',
         }}>
@@ -754,6 +774,7 @@ export default function DashboardPage({ user, onLogout }: Props) {
 
         {/* Modals */}
         {modal === 'image' && <ImageRecognizeModal deviceMode onClose={() => setModal(null)} onFill={d => { setPrefill(d); setModal('manual'); }} onDirectAdd={handleDirectAdd} />}
+        {modal === 'barcode' && <BarcodeScanModal deviceMode onClose={() => setModal(null)} onFill={d => { setPrefill(d); setModal('manual'); }} />}
         {modal === 'manual' && <AddItemModal userId={user.user_id} prefill={prefill} cachedCategories={categories} cachedIngredients={allIngredients} onClose={() => { setModal(null); setPrefill(null); }} onAdded={loadData} />}
       </div>
     );
@@ -1005,7 +1026,8 @@ export default function DashboardPage({ user, onLogout }: Props) {
       </div>
 
       {/* Modals */}
-      {modal === 'choice' && <AddChoiceModal onManual={() => { setPrefill(null); setModal('manual'); }} onCamera={() => setModal('image')} onClose={() => setModal(null)} />}
+      {modal === 'choice' && <AddChoiceModal onManual={() => { setPrefill(null); setModal('manual'); }} onCamera={() => setModal('image')} onBarcode={() => setModal('barcode')} onClose={() => setModal(null)} />}
+      {modal === 'barcode' && <BarcodeScanModal onClose={() => setModal(null)} onFill={d => { setPrefill(d); setModal('manual'); }} />}
       {modal === 'image' && <ImageRecognizeModal onClose={() => setModal(null)} onFill={d => { setPrefill(d); setModal('manual'); }} />}
       {modal === 'manual' && <AddItemModal userId={user.user_id} prefill={prefill} cachedCategories={categories} cachedIngredients={allIngredients} onClose={() => { setModal(null); setPrefill(null); }} onAdded={loadData} />}
       {modal === 'edit' && editItem && <EditItemModal item={editItem} cachedCategories={categories} cachedIngredients={allIngredients} onClose={() => { setModal(null); setEditItem(null); }} onUpdated={loadData} />}

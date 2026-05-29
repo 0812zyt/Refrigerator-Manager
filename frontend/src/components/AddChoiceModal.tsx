@@ -3,10 +3,11 @@ import { overlay, modalStyle, modalTitle, cancelBtn } from '../pages/DashboardPa
 interface Props {
   onManual: () => void;
   onCamera: () => void;
+  onBarcode: () => void;
   onClose: () => void;
 }
 
-export default function AddChoiceModal({ onManual, onCamera, onClose }: Props) {
+export default function AddChoiceModal({ onManual, onCamera, onBarcode, onClose }: Props) {
   return (
     <div style={overlay} onClick={onClose}>
       <div style={{ ...modalStyle, maxWidth:360, textAlign:'center' }} onClick={e => e.stopPropagation()}>
@@ -25,6 +26,13 @@ export default function AddChoiceModal({ onManual, onCamera, onClose }: Props) {
             <div>
               <div style={{ fontWeight:700, fontSize:15, color:'#5b21b6' }}>影像辨識</div>
               <div style={{ fontSize:12, color:'#94a3b8', marginTop:2 }}>拍照或上傳照片，AI 自動辨識</div>
+            </div>
+          </button>
+          <button style={{ display:'flex', alignItems:'center', gap:14, padding:'16px 18px', borderRadius:14, border:'2px solid #86efac', background:'#f0fdf4', cursor:'pointer', width:'100%', textAlign:'left' }} onClick={onBarcode}>
+            <span style={{ fontSize:28 }}>📊</span>
+            <div>
+              <div style={{ fontWeight:700, fontSize:15, color:'#166534' }}>條碼掃描</div>
+              <div style={{ fontSize:12, color:'#94a3b8', marginTop:2 }}>掃描 EAN-13 條碼自動帶入名稱</div>
             </div>
           </button>
         </div>

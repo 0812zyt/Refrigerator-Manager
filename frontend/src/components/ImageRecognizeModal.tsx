@@ -356,22 +356,32 @@ export default function ImageRecognizeModal({ onClose, onFill, deviceMode, onDir
                   </>
                 )}
 
-                {/* 2. 低信心度警告提示 */}
-                {lowConfidence && (
-                  <div style={{ background:'#fff7ed', border:'1.5px solid #fed7aa', borderRadius:12, padding:'12px 14px', marginBottom:12, display:'flex', flexDirection:'column', gap: 4 }}>
-                    <div style={{ fontWeight:700, color:'#c2410c', fontSize:14, display:'flex', alignItems:'center', gap:6 }}>
-                      <span>⚠️ 影像信心度不足，請手動確認</span>
+                {/* 2. 低信心度 → 用 closestClass 顯示為主要結果 */}
+                {lowConfidence && closestClass && (
+                  <>
+                    <p style={{ fontWeight:700, color:'#059669', fontSize:14, marginBottom:10 }}>辨識結果</p>
+                    <div style={{ background:'#ecfdf5', borderRadius:12, padding:'14px', marginBottom:12, border:'1.5px solid #a7f3d0', boxShadow:'0 2px 8px rgba(16,185,129,0.05)' }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                        <span style={{ fontSize:28 }}>{CATEGORY_ICONS[closestClass] ?? '🍎'}</span>
+                        <div style={{ flex:1 }}>
+                          <div style={{ fontWeight:700, color:'#065f46', fontSize:16 }}>{closestClass}</div>
+                        </div>
+                        <button style={{ padding:'8px 18px', background:'linear-gradient(135deg,#10b981,#059669)', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:700, cursor:'pointer', boxShadow:'0 2px 6px rgba(16,185,129,0.2)' }}
+                          onClick={() => onFill({ name: closestClass })}>
+                          直接使用
+                        </button>
+                      </div>
                     </div>
-                    <div style={{ fontSize:12, color:'#9a3412' }}>
-                      最接近的類別可能為 <strong>{closestClass}</strong>，您也可以從下方候選清單中選擇：
-                    </div>
-                  </div>
+                  </>
                 )}
 
                 {/* 3. Top 5 候選清單（排除已辨識結果） */}
                 {top5 && top5.length > 0 && (
                   <div style={{ marginTop: 14, display:'flex', flexWrap:'wrap', gap:8 }}>
-                    {top5.filter(cand => !results?.some(r => r.name.toLowerCase() === cand.label.toLowerCase())).map((cand, idx) => (
+                    {top5.filter(cand =>
+                      !results?.some(r => r.name.toLowerCase() === cand.label.toLowerCase()) &&
+                      cand.label.toLowerCase() !== closestClass.toLowerCase()
+                    ).map((cand, idx) => (
                       <button key={idx} onClick={() => onFill({ name: cand.label })} style={{
                         display:'inline-flex', alignItems:'center', gap:6,
                         padding:'8px 14px',

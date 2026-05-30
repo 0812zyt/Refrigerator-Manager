@@ -275,18 +275,15 @@ export default function ImageRecognizeModal({ onClose, onFill, deviceMode, onDir
 
         {mode === 'choose' && (
           <>
-            <p style={{ color:'#64748b', fontSize:13, marginBottom:16 }}>選擇圖片來源，AI 自動辨識食材</p>
             <div style={{ display:'flex', gap:12 }}>
               {/* 主方案：LINE 用 capture input，一般用 getUserMedia */}
               <button style={srcBtn('#7c3aed', '#faf5ff')} onClick={() => isLine ? captureRef.current?.click() : startCamera()}>
                 <span style={{ fontSize:28 }}>📸</span>
                 <div style={{ fontWeight:700 }}>開啟相機拍照</div>
-                <div style={{ fontSize:11, color:'#94a3b8' }}>{isLine ? '系統相機' : '使用裝置相機'}</div>
               </button>
               <button style={srcBtn('#0ea5e9', '#f0f9ff')} onClick={() => fileRef.current?.click()}>
                 <span style={{ fontSize:28 }}>🖼️</span>
                 <div style={{ fontWeight:700 }}>上傳照片</div>
-                <div style={{ fontSize:11, color:'#94a3b8' }}>JPG / PNG / WEBP</div>
               </button>
             </div>
             <input ref={fileRef} type="file" accept="image/*" style={{ display:'none' }} onChange={e => handleFile(e.target.files?.[0] ?? null)} />
@@ -348,7 +345,6 @@ export default function ImageRecognizeModal({ onClose, onFill, deviceMode, onDir
                           <span style={{ fontSize:28 }}>{CATEGORY_ICONS[item.category ?? ''] ?? '🍎'}</span>
                           <div style={{ flex:1 }}>
                             <div style={{ fontWeight:700, color:'#065f46', fontSize: 16 }}>{item.name}</div>
-                            <div style={{ fontSize:12, color:'#047857', opacity: 0.8 }}>已成功辨識</div>
                           </div>
                           <button style={{ padding:'8px 18px', background:'linear-gradient(135deg,#10b981,#059669)', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:700, cursor:'pointer', boxShadow: '0 2px 6px rgba(16,185,129,0.2)' }}
                             onClick={() => onFill({ name: item.name, category: item.category })}>
@@ -372,46 +368,20 @@ export default function ImageRecognizeModal({ onClose, onFill, deviceMode, onDir
                   </div>
                 )}
 
-                {/* 3. Top 5 候選清單 */}
+                {/* 3. Top 5 候選清單（排除已辨識結果） */}
                 {top5 && top5.length > 0 && (
-                  <div style={{ marginTop: 14 }}>
-                    <p style={{ fontWeight:700, color:'#475569', fontSize:13, marginBottom:10, display:'flex', alignItems:'center', gap:6 }}>
-                      <span>📊 候選清單 </span>
-                    </p>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      {top5.map((cand, idx) => {
-                        return (
-                          <div key={idx} style={{ 
-                            background:'#f8fafc', 
-                            borderRadius:12, 
-                            padding:'10px 14px', 
-                            border:'1px solid #e2e8f0',
-                            display:'flex',
-                            alignItems:'center',
-                            justifyContent:'space-between',
-                          }}>
-                            <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                              <span style={{ fontSize:20 }}>💡</span>
-                              <span style={{ fontWeight: 600, color: '#334155' }}>{cand.label}</span>
-                            </div>
-                            <button style={{ 
-                              padding:'5px 12px', 
-                              background:'linear-gradient(135deg,#3b82f6,#1d4ed8)', 
-                              color:'#fff', 
-                              border:'none', 
-                              borderRadius:8, 
-                              fontSize:12, 
-                              fontWeight:600, 
-                              cursor:'pointer',
-                              boxShadow: '0 2px 4px rgba(59,130,246,0.1)'
-                            }}
-                              onClick={() => onFill({ name: cand.label })}>
-                              選用
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
+                  <div style={{ marginTop: 14, display:'flex', flexWrap:'wrap', gap:8 }}>
+                    {top5.filter(cand => !results?.some(r => r.name.toLowerCase() === cand.label.toLowerCase())).map((cand, idx) => (
+                      <button key={idx} onClick={() => onFill({ name: cand.label })} style={{
+                        display:'inline-flex', alignItems:'center', gap:6,
+                        padding:'8px 14px',
+                        background:'#f8fafc', borderRadius:10, border:'1px solid #e2e8f0',
+                        cursor:'pointer', whiteSpace:'nowrap',
+                      }}>
+                        <span style={{ fontSize:16 }}>💡</span>
+                        <span style={{ fontWeight:600, color:'#334155', fontSize:14 }}>{cand.label}</span>
+                      </button>
+                    ))}
                   </div>
                 )}
 

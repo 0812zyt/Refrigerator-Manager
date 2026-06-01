@@ -108,10 +108,20 @@ async function autoClassifyIngredients(
   return mapping;
 }
 
-async function fetchGeminiRecipes(ingredients: string[]): Promise<GeminiRecipe[]> {
+async function fetchGeminiRecipes(items: { name: string; daysLeft: number }[]): Promise<GeminiRecipe[]> {
+  // 依剩餘天數由少到多排序（快過期的優先）
+  const sorted = [...items].sort((a, b) => a.daysLeft - b.daysLeft);
+  const annotated = sorted.map(i =>
+    i.daysLeft <= 2 ? `${i.name}【剩${i.daysLeft}天，務必優先使用】`
+    : i.daysLeft <= 5 ? `${i.name}（剩${i.daysLeft}天，建議優先）`
+    : `${i.name}（剩${i.daysLeft}天）`
+  );
+  const urgent = sorted.filter(i => i.daysLeft <= 2).map(i => i.name);
+
   const prompt = `請根據以下冰箱食材，生成 4 道適合家庭料理的真實食譜，並嚴格依照以下 JSON 格式輸出。
 
-冰箱食材清單：${ingredients.join('、')}
+冰箱食材清單（依剩餘新鮮天數排序，前面的越快過期）：${annotated.join('、')}
+${urgent.length > 0 ? `\n⚠️ 以下食材即將過期，必須出現在至少一道料理中：${urgent.join('、')}` : ''}
 
 【輸出規則】
 - 僅能回傳 JSON 陣列，不可包含 Markdown、解釋、\`\`\`json 或多餘文字
@@ -127,6 +137,7 @@ async function fetchGeminiRecipes(ingredients: string[]): Promise<GeminiRecipe[]
 - missing：缺少但必要的主要食材（不含調味料），最多 3 項，越少越好，若可只用現有食材完成則為 []
 - used 與 missing 不可重複
 - 至少使用 used 中 1~3 項食材
+- **優先使用快過期食材**：4 道料理中至少 2 道要使用清單最前面（剩餘天數最少）的食材
 - 禁止推薦以缺少食材為核心的料理：例如冰箱沒有飯就不可推薦炒飯，沒有麵就不可推薦炒麵，應改推該食材能做的其他料理
 
 【ingredients / seasonings 規則】
@@ -293,19 +304,23 @@ function RecipeView({ items, state, setState }: {
 }) {
   const { recipes, loading, error, fetched } = state;
   const [selected, setSelected] = useState<GeminiRecipe | null>(null);
-  const names = items.map(i => i.ingredient_name ?? '').filter(Boolean);
-  const nameKey = names.join(',');
+  // 排除已過期食材，只用未過期的
+  const freshItems = items
+    .map(i => ({ name: i.ingredient_name ?? '', daysLeft: getDaysLeft(i.expire_date) }))
+    .filter(i => i.name && i.daysLeft >= 0);
+  const names = freshItems.map(i => i.name);
+  const nameKey = freshItems.map(i => `${i.name}:${i.daysLeft}`).join(',');
 
-  const doFetch = (nameList: string[]) => {
+  const doFetch = (list: { name: string; daysLeft: number }[]) => {
     setState({ recipes: [], loading: true, error: '', fetched: true });
-    fetchGeminiRecipes(nameList)
+    fetchGeminiRecipes(list)
       .then(r => setState({ recipes: r, loading: false, error: '', fetched: true }))
       .catch(e => setState({ recipes: [], loading: false, error: e instanceof Error ? e.message : '推薦失敗，請稍後再試', fetched: true }));
   };
 
   useEffect(() => {
-    if (names.length === 0 || fetched) return;
-    doFetch(names);
+    if (freshItems.length === 0 || fetched) return;
+    doFetch(freshItems);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nameKey]);
 
@@ -319,7 +334,7 @@ function RecipeView({ items, state, setState }: {
           </p>
         </div>
         {names.length > 0 && !loading && (
-          <button onClick={() => doFetch(names)}
+          <button onClick={() => doFetch(freshItems)}
             style={{ fontSize:12, padding:'6px 14px', borderRadius:10, border:'1px solid var(--border)', background:'var(--surface)', color:'var(--text-3)', cursor:'pointer' }}>
             重新推薦
           </button>
@@ -337,7 +352,7 @@ function RecipeView({ items, state, setState }: {
         <div style={{ textAlign:'center', padding:'40px 0', color:'var(--text-3)' }}>
           <div style={{ fontSize:36, marginBottom:8 }}>⚠️</div>
           <div style={{ fontSize:13, marginBottom:12, color:'#f87171' }}>{error}</div>
-          <button onClick={() => doFetch(names)}
+          <button onClick={() => doFetch(freshItems)}
             style={{ fontSize:13, padding:'8px 20px', borderRadius:10, border:'none', background:'var(--accent)', color:'#fff', cursor:'pointer' }}>
             重試
           </button>

@@ -3,6 +3,7 @@ import { getCategories, getIngredients, createInventory, createIngredient } from
 import type { Category, Ingredient } from '../api/types';
 import { overlay, modalStyle, modalTitle, cancelBtn, saveBtn, fieldStyle, labelStyle, inputStyle } from '../pages/DashboardPage';
 import { inferCategory } from '../utils/categoryInfer';
+import { compressImage } from '../utils/imageCompress';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 
@@ -158,10 +159,12 @@ export default function AddItemModal({ userId, prefill, cachedCategories, cached
   const handleFile = (file: File | null, type: 'product' | 'expire') => {
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = e => {
-      const dataUrl = e.target!.result as string;
-      if (type === 'product') setProductPhoto(dataUrl);
-      else setExpirePhoto(dataUrl);
+    reader.onload = async e => {
+      const raw = e.target!.result as string;
+      const compressed = await compressImage(raw, 800, 0.7);
+      console.log('[upload]', type, 'raw:', raw.length, '→', compressed.length);
+      if (type === 'product') setProductPhoto(compressed);
+      else setExpirePhoto(compressed);
     };
     reader.readAsDataURL(file);
   };

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { overlay, modalStyle, modalTitle, cancelBtn, saveBtn } from '../pages/DashboardPage';
+import { compressImage } from '../utils/imageCompress';
 
 interface RecognizeResult {
   name: string;
@@ -49,12 +50,22 @@ export default function ImageRecognizeModal({ onClose, onFill, deviceMode, onDir
     if (isLine) return;
     try {
       let stream: MediaStream;
+      const hiRes = { width: { ideal: 1280 }, height: { ideal: 720 } };
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', ...hiRes } });
       } catch {
-        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ video: { ...hiRes } });
+        } catch {
+          stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        }
       }
       streamRef.current = stream;
+      const track = stream.getVideoTracks()[0];
+      if (track) {
+        const s = track.getSettings();
+        console.log('[camera] track settings:', s.width, 'x', s.height, 'label:', track.label);
+      }
       if (videoRef.current) videoRef.current.srcObject = stream;
     } catch {
       setCamError('無法存取相機，請確認已授予相機權限，或改用上傳方式。');
@@ -85,22 +96,32 @@ export default function ImageRecognizeModal({ onClose, onFill, deviceMode, onDir
     streamRef.current = null;
   }, []);
 
-  const capture = () => {
+  const capture = async () => {
     const video = videoRef.current; const canvas = canvasRef.current;
     if (!video || !canvas) return;
-    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+    const vw = video.videoWidth, vh = video.videoHeight;
+    console.log('[capture] video size:', vw, 'x', vh);
+    if (!vw || !vh) {
+      setCamError('相機尚未準備好，請稍候再按。');
+      return;
+    }
+    canvas.width = vw; canvas.height = vh;
     canvas.getContext('2d')!.drawImage(video, 0, 0);
-    const dataUrl = canvas.toDataURL('image/jpeg');
-    setImgSrc(dataUrl); setImgBase64(dataUrl.split(',')[1]);
+    const raw = canvas.toDataURL('image/jpeg', 0.92);
+    const compressed = await compressImage(raw, 800, 0.7);
+    console.log('[capture] raw size:', raw.length, '→ compressed:', compressed.length);
+    setImgSrc(compressed); setImgBase64(compressed.split(',')[1]);
     stopCamera(); setMode('preview');
   };
 
   const handleFile = (file: File | null) => {
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = e => {
-      const result = e.target!.result as string;
-      setImgSrc(result); setImgBase64(result.split(',')[1]);
+    reader.onload = async e => {
+      const raw = e.target!.result as string;
+      const compressed = await compressImage(raw, 800, 0.7);
+      console.log('[upload] raw size:', raw.length, '→ compressed:', compressed.length);
+      setImgSrc(compressed); setImgBase64(compressed.split(',')[1]);
       setResults(null); setError(''); setMode('preview');
     };
     reader.readAsDataURL(file);

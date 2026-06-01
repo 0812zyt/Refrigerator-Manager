@@ -9,6 +9,7 @@ export default defineConfig({
       '/api': {
         target: 'https://smartfridge-f6b6.onrender.com',
         changeOrigin: true,
+        secure: true,
       },
     },
   },

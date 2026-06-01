@@ -3,15 +3,22 @@ import type {
   InventoryCreate, InventoryUpdate, SystemStatus
 } from './types';
 
-const BASE = import.meta.env.DEV
-  ? '/api/v1'
-  : 'https://smartfridge-f6b6.onrender.com/api/v1';
+const BASE = import.meta.env.VITE_API_BASE
+  ?? (import.meta.env.DEV ? '/api/v1' : 'https://smartfridge-f6b6.onrender.com/api/v1');
 
 async function request<T>(path: string, init?: RequestInit, retried = false): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
-    ...init,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      headers: { 'Content-Type': 'application/json' },
+      ...init,
+    });
+  } catch {
+    if (retried) throw new Error('無法連線，請稍後再試');
+    await fetch(`${BASE}/system/wake`, { method: 'POST', headers: { 'Content-Type': 'application/json' } }).catch(() => {});
+    await new Promise(r => setTimeout(r, 5000));
+    return request<T>(path, init, true);
+  }
   if (res.status === 503 && !retried) {
     await fetch(`${BASE}/system/wake`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
     return request<T>(path, init, true);

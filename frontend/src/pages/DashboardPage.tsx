@@ -651,7 +651,14 @@ export default function DashboardPage({ user, onLogout }: Props) {
     loadData();
   };
   const batchStockAll = async () => {
-    const doneItems = cartItems.filter(i => cartSelected.has(i.id));
+    const selectedItems = cartItems.filter(i => cartSelected.has(i.id));
+    const doneItems = selectedItems.filter(i => i.done);
+    const undoneCount = selectedItems.length - doneItems.length;
+    if (doneItems.length === 0) {
+      setBatchStockConfirm(false);
+      showToast('只能加入已勾選（劃線）的項目');
+      return;
+    }
     let successCount = 0;
     const stockedIds: number[] = [];
     let lastError = '';
@@ -683,7 +690,10 @@ export default function DashboardPage({ user, onLogout }: Props) {
     loadData();
     const skipped = doneItems.length - successCount;
     if (lastError && successCount === 0) { showToast(`入庫失敗：${lastError.slice(0, 30)}`); return; }
-    showToast(skipped > 0 ? `已入庫 ${successCount} 項，${skipped} 項略過` : `已入庫 ${successCount} 項`);
+    const parts = [`已入庫 ${successCount} 項`];
+    if (skipped > 0) parts.push(`${skipped} 項略過`);
+    if (undoneCount > 0) parts.push(`${undoneCount} 項未勾選`);
+    showToast(parts.join('，'));
   };
 
   const addOutOfStockToCart = () => {
@@ -1297,7 +1307,9 @@ export default function DashboardPage({ user, onLogout }: Props) {
       )}
 
       {batchStockConfirm && (() => {
-        const doneItems = cartItems.filter(i => i.done);
+        const selectedItems = cartItems.filter(i => cartSelected.has(i.id));
+        const doneItems = selectedItems.filter(i => i.done);
+        const undoneSelected = selectedItems.filter(i => !i.done);
         const matchable = doneItems.filter(ci => allIngredients.some(i => i.name === ci.name));
         const unmatched = doneItems.filter(ci => !allIngredients.some(i => i.name === ci.name));
         return (
@@ -1321,8 +1333,16 @@ export default function DashboardPage({ user, onLogout }: Props) {
                   ))}
                 </div>
               )}
+              {undoneSelected.length > 0 && (
+                <div style={{ background:'rgba(245,158,11,0.08)', borderRadius:12, padding:'10px 14px', marginBottom:12, maxHeight:120, overflowY:'auto' }}>
+                  <div style={{ fontSize:12, color:'#f59e0b', fontWeight:700, marginBottom:4 }}>以下選取項目未勾選（未劃線），將略過：</div>
+                  {undoneSelected.map(ci => (
+                    <div key={ci.id} style={{ fontSize:13, color:'#94a3b8', padding:'3px 0' }}>○ {ci.name}</div>
+                  ))}
+                </div>
+              )}
               {matchable.length === 0 && (
-                <p style={{ color:'#ef4444', fontSize:13, textAlign:'center', marginBottom:12 }}>沒有可識別的商品可以入庫</p>
+                <p style={{ color:'#ef4444', fontSize:13, textAlign:'center', marginBottom:12 }}>{undoneSelected.length > 0 ? '請先勾選（點擊劃線）想加入冰箱的項目' : '沒有可識別的商品可以入庫'}</p>
               )}
               <div style={{ display:'flex', gap:10, marginTop:4 }}>
                 <button style={cancelBtn} onClick={() => setBatchStockConfirm(false)}>取消</button>

@@ -273,12 +273,6 @@ export default function AddItemModal({ userId, prefill, cachedCategories, cached
             </div>
           )}
 
-          {selectedIng && (
-            <div style={{ background:'#f0f9ff', borderRadius:10, padding:'8px 14px', marginBottom:14, fontSize:14, color:'#0369a1', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-              <span>✅ 已選：<strong>{selectedIng.name}</strong></span>
-              <button onClick={() => { setSelectedIng(null); setForm(f => ({ ...f, name:'' })); }} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:16 }}>✕</button>
-            </div>
-          )}
 
           <div style={fieldStyle}>
             <label style={labelStyle}>分類</label>

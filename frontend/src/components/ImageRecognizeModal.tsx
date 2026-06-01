@@ -207,7 +207,7 @@ export default function ImageRecognizeModal({ onClose, onFill, deviceMode, onDir
           <>
             <img src={imgSrc!} alt="preview" style={{ width:'100%', height:'100%', objectFit:'contain', display:'block' }} />
             {/* Top bar */}
-            <button onClick={reset} style={{ position:'absolute', top:12, left:12, padding:'8px 18px', borderRadius:20, background:'rgba(0,0,0,0.55)', color:'#fff', border:'none', fontSize:14, fontWeight:700, cursor:'pointer' }}>重新拍</button>
+            <button onClick={reset} style={{ position:'absolute', top:12, left:12, padding:'8px 18px', borderRadius:20, background:'rgba(0,0,0,0.55)', color:'#fff', border:'none', fontSize:14, fontWeight:700, cursor:'pointer', zIndex:2 }}>重新拍</button>
             {/* Recognize button */}
             {!results && !top5 && !loading && (
               <button onClick={recognize} style={{ position:'absolute', bottom:28, left:'50%', transform:'translateX(-50%)', padding:'14px 36px', borderRadius:30, background:'linear-gradient(135deg,#7c3aed,#5b21b6)', color:'#fff', border:'none', fontSize:16, fontWeight:800, cursor:'pointer', boxShadow:'0 4px 16px rgba(0,0,0,0.4)', whiteSpace:'nowrap' }}>
@@ -225,7 +225,7 @@ export default function ImageRecognizeModal({ onClose, onFill, deviceMode, onDir
             )}
             {/* Results overlay */}
             {(results || (top5 && top5.length > 0)) && (
-              <div style={{ position:'absolute', top:52, left:0, right:0, bottom:0, background:'rgba(15,23,42,0.95)', display:'flex', flexDirection:'column' }}>
+              <div style={{ position:'absolute', top:0, left:0, right:0, bottom:0, background:'rgba(15,23,42,0.55)', display:'flex', flexDirection:'column', zIndex:1 }}>
                 {addState === 'done' ? (
                   <>
                     <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:12 }}>
@@ -237,8 +237,8 @@ export default function ImageRecognizeModal({ onClose, onFill, deviceMode, onDir
                   </>
                 ) : (
                   <>
-                    {lowConfidence && <div style={{ color:'#fbbf24', fontSize:12, padding:'10px 14px 4px', flexShrink:0 }}>⚠️ 信心度不足，請選擇候選項目</div>}
-                    <div style={{ flex:1, overflowY:'auto', padding:'14px 14px 8px' }}>
+                    <div style={{ color:'#e2e8f0', fontSize:13, fontWeight:700, padding:'52px 14px 6px', flexShrink:0 }}>辨識結果</div>
+                    <div style={{ flex:1, overflowY:'auto', padding:'8px 14px' }}>
                       {results && results.length > 0 && results.map((item, i) => (
                         <button key={i} disabled={addState === 'adding'} onClick={async () => { if (!onDirectAdd) { onFill({ name: item.name, category: item.category, photo: imgSrc ?? undefined }); return; } setAddState('adding'); setAddedName(item.name); await onDirectAdd(item.name, item.category); setAddState('done'); }}
                           style={{ display:'block', width:'100%', padding:'12px 16px', background: addState === 'adding' ? 'rgba(16,185,129,0.08)' : 'rgba(16,185,129,0.15)', border:'1px solid rgba(16,185,129,0.3)', borderRadius:10, color:'#a7f3d0', fontWeight:700, fontSize:15, textAlign:'left', cursor: addState === 'adding' ? 'wait' : 'pointer', marginBottom:10 }}>

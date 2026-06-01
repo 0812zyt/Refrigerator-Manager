@@ -55,7 +55,7 @@ function AppInner() {
     </div>
   );
 
-  if (!user) return <LoginPage />;
+  if (!user) return <LoginPage onLogin={setUser} />;
   return <DashboardPage user={user} onLogout={handleLogout} />;
 }
 

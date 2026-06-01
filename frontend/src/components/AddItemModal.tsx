@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { getCategories, getIngredients, createInventory, createIngredient } from '../api/client';
 import type { Category, Ingredient } from '../api/types';
-import { inferCategory } from '../utils/categoryInfer';
-import { overlay, modalStyle, modalTitle, cancelBtn, saveBtn, fieldStyle, labelStyle, inputStyle, CAT_ZH } from '../pages/DashboardPage';
+import { overlay, modalStyle, modalTitle, cancelBtn, saveBtn, fieldStyle, labelStyle, inputStyle } from '../pages/DashboardPage';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 
@@ -30,9 +29,22 @@ const FOOD_STICKERS = [
   '🍚','🍞','🧇','🥞','🍜','🥗','🫙','🧃','🥤','🍵',
 ];
 
+function emojiToDataUrl(emoji: string): string {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128; canvas.height = 128;
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = '#f8fafc';
+  ctx.fillRect(0, 0, 128, 128);
+  ctx.font = '80px serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(emoji, 64, 68);
+  return canvas.toDataURL('image/png');
+}
+
 function PhotoPickerSheet({ onFile, onSticker, onClose }: {
   onFile: (file: File, source: 'album' | 'camera') => void;
-  onSticker: (emoji: string) => void;
+  onSticker: (dataUrl: string) => void;
   onClose: () => void;
 }) {
   const [showStickers, setShowStickers] = useState(false);
@@ -47,7 +59,7 @@ function PhotoPickerSheet({ onFile, onSticker, onClose }: {
         <div style={{ padding: '12px 16px 8px', textAlign: 'center', fontSize: 13, color: '#94a3b8' }}>選擇貼紙</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 4, padding: '8px 16px 16px' }}>
           {FOOD_STICKERS.map(emoji => (
-            <button key={emoji} onClick={() => { onSticker(emoji); onClose(); }}
+            <button key={emoji} onClick={() => { onSticker(emojiToDataUrl(emoji)); onClose(); }}
               style={{ fontSize: 28, background: 'none', border: 'none', cursor: 'pointer', padding: 4, borderRadius: 8, lineHeight: 1 }}>
               {emoji}
             </button>
@@ -83,12 +95,11 @@ export default function AddItemModal({ userId, prefill, cachedCategories, cached
   const [allIngredients, setAllIngredients] = useState<Ingredient[]>(cachedIngredients ?? []);
   const [ingredients, setIngredients] = useState<Ingredient[]>(cachedIngredients ?? []);
   const today = new Date().toISOString().slice(0, 10);
-  const [form, setForm] = useState({ name: prefill?.name ?? '', category: prefill?.category ?? '', quantity: '1', expiry: '', purchaseDate: today });
+  const [form, setForm] = useState({ name: prefill?.name ?? '', category: prefill?.category ?? 'Others', quantity: '1', expiry: '', purchaseDate: today });
   const [selectedIng, setSelectedIng] = useState<Ingredient | null>(null);
   const [saving, setSaving]   = useState(false);
   const [error, setError]     = useState('');
   const [productPhoto, setProductPhoto] = useState<string | null>(null);
-  const [iconEmoji, setIconEmoji]       = useState<string | null>(null);
   const [expirePhoto, setExpirePhoto]   = useState<string | null>(null);
   const [picker, setPicker] = useState<null | 'product' | 'expire'>(null);
   const skipClearRef = useRef(false);
@@ -125,7 +136,7 @@ export default function AddItemModal({ userId, prefill, cachedCategories, cached
     const reader = new FileReader();
     reader.onload = e => {
       const dataUrl = e.target!.result as string;
-      if (type === 'product') { setProductPhoto(dataUrl); setIconEmoji(null); }
+      if (type === 'product') setProductPhoto(dataUrl);
       else setExpirePhoto(dataUrl);
     };
     reader.readAsDataURL(file);
@@ -138,6 +149,7 @@ export default function AddItemModal({ userId, prefill, cachedCategories, cached
 
   const handleSave = async () => {
     if (!form.name.trim()) { setError('請輸入食材名稱'); return; }
+    if (!form.expiry) { setError('請選擇到期日'); return; }
     setError(''); setSaving(true);
     try {
       let ing = selectedIng
@@ -145,12 +157,8 @@ export default function AddItemModal({ userId, prefill, cachedCategories, cached
         ?? allIngredients.find(i => i.name.toLowerCase().includes(form.name.trim().toLowerCase()))
         ?? null;
       if (!ing) {
-        let catEntry = categories.find(c => c.category_name === form.category);
-        if (!catEntry || catEntry.category_name === 'Others' || catEntry.category_name === '其他') {
-          catEntry = (await inferCategory(form.name.trim(), categories))
-            ?? catEntry
-            ?? categories.find(c => c.category_name === 'Others' || c.category_name === '其他');
-        }
+        const catEntry = categories.find(c => c.category_name === form.category)
+          ?? categories.find(c => c.category_name === 'Others' || c.category_name === '其他');
         ing = await createIngredient({ name: form.name.trim(), category_id: catEntry?.category_id });
       }
       const expireDate = form.expiry
@@ -165,9 +173,9 @@ export default function AddItemModal({ userId, prefill, cachedCategories, cached
         expire_date: expireDate,
         custom_expire: !!form.expiry,
       });
+      // 新增成功後，把照片存進 localStorage
       const newId = created.inventory_id;
-      if (iconEmoji)    localStorage.setItem(`fridge_icon_${newId}`, iconEmoji);
-      else if (productPhoto) localStorage.setItem(`fridge_photo_product_${newId}`, productPhoto);
+      if (productPhoto) localStorage.setItem(`fridge_photo_product_${newId}`, productPhoto);
       if (expirePhoto)  localStorage.setItem(`fridge_photo_expire_${newId}`, expirePhoto);
       onAdded(); onClose();
     } catch (e: unknown) {
@@ -184,31 +192,19 @@ export default function AddItemModal({ userId, prefill, cachedCategories, cached
   const catMap: Record<number, string> = {};
   categories.forEach(c => { catMap[c.category_id] = c.category_name; });
 
-  const PhotoPanel = ({ type }: { type: 'product' | 'expire' }) => {
-    const isProduct = type === 'product';
-    const photo = isProduct ? productPhoto : expirePhoto;
-    const emoji = isProduct ? iconEmoji : null;
-    const clear = () => { if (isProduct) { setProductPhoto(null); setIconEmoji(null); } else setExpirePhoto(null); };
-    return (
-      <div style={panelStyle} onClick={() => openPicker(type)}>
-        {emoji ? (
-          <>
-            <span style={{ fontSize: 72 }}>{emoji}</span>
-            <button onClick={e => { e.stopPropagation(); clear(); }}
-              style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.4)', border: 'none', color: '#fff', borderRadius: '50%', width: 22, height: 22, cursor: 'pointer', fontSize: 12 }}>✕</button>
-          </>
-        ) : photo ? (
-          <>
-            <img src={photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0, borderRadius: 10 }} />
-            <button onClick={e => { e.stopPropagation(); clear(); }}
-              style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.5)', border: 'none', color: '#fff', borderRadius: '50%', width: 22, height: 22, cursor: 'pointer', fontSize: 12 }}>✕</button>
-          </>
-        ) : (
-          <span style={{ fontSize: 36, color: '#94a3b8' }}>{isProduct ? '📷' : '📅'}</span>
-        )}
-      </div>
-    );
-  };
+  const PhotoPanel = ({ type, photo, label }: { type: 'product' | 'expire'; photo: string | null; label: string }) => (
+    <div style={panelStyle} onClick={() => openPicker(type)}>
+      {photo ? (
+        <>
+          <img src={photo} alt={label} style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0, borderRadius: 10 }} />
+          <button onClick={e => { e.stopPropagation(); type === 'product' ? setProductPhoto(null) : setExpirePhoto(null); }}
+            style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.5)', border: 'none', color: '#fff', borderRadius: '50%', width: 22, height: 22, cursor: 'pointer', fontSize: 12 }}>✕</button>
+        </>
+      ) : (
+        <span style={{ fontSize: 36, color: '#94a3b8' }}>{type === 'product' ? '📷' : '📅'}</span>
+      )}
+    </div>
+  );
 
   return (
     <>
@@ -217,7 +213,7 @@ export default function AddItemModal({ userId, prefill, cachedCategories, cached
           <h2 style={modalTitle}>＋ 新增食材</h2>
 
           <div style={{ display: 'flex', gap: 10, marginBottom: 18 }}>
-            <PhotoPanel type="product" />
+            <PhotoPanel type="product" photo={productPhoto} label="商品照片" />
           </div>
 
           <div style={fieldStyle}>
@@ -251,9 +247,9 @@ export default function AddItemModal({ userId, prefill, cachedCategories, cached
 
           <div style={fieldStyle}>
             <label style={labelStyle}>分類</label>
-            <select style={{ ...inputStyle, textAlign: 'center', color: form.category ? undefined : '#94a3b8' }} value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
-              <option value="">未選擇將自動分類</option>
-              {categories.map(c => <option key={c.category_id} value={c.category_name}>{CATEGORY_ICONS[c.category_name] ?? '📦'} {CAT_ZH[c.category_name] ?? c.category_name}</option>)}
+            <select style={{ ...inputStyle, textAlign: 'center' }} value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
+              <option value="Others">Others</option>
+              {categories.map(c => <option key={c.category_id} value={c.category_name}>{CATEGORY_ICONS[c.category_name] ?? '📦'} {c.category_name}</option>)}
             </select>
           </div>
 
@@ -280,7 +276,7 @@ export default function AddItemModal({ userId, prefill, cachedCategories, cached
           </div>
 
           <div style={fieldStyle}>
-            <label style={labelStyle}>到期日</label>
+            <label style={labelStyle}>到期日 *</label>
             <DatePicker
               selected={form.expiry ? new Date(form.expiry) : null}
               onChange={(date: Date | null) => setForm({ ...form, expiry: date ? date.toISOString().slice(0, 10) : '' })}
@@ -304,7 +300,7 @@ export default function AddItemModal({ userId, prefill, cachedCategories, cached
       {picker && (
         <PhotoPickerSheet
           onFile={(file) => handleFile(file, activeType.current)}
-          onSticker={(emoji) => { if (activeType.current === 'product') { setIconEmoji(emoji); setProductPhoto(null); } else setExpirePhoto(null); setPicker(null); }}
+          onSticker={(dataUrl) => { activeType.current === 'product' ? setProductPhoto(dataUrl) : setExpirePhoto(dataUrl); setPicker(null); }}
           onClose={() => setPicker(null)}
         />
       )}

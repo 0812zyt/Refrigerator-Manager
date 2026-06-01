@@ -1,6 +1,6 @@
 """
 資料更新與寫入邏輯模組 (DBUpdateModule)
-資料更新與寫入邏輯
+對應報告 3-3-2 B：資料更新與寫入邏輯
 
 流程：
   B.1 欄位檢查與預處理：檢查必要欄位，缺少非關鍵欄位時自動填入預設值
@@ -24,7 +24,7 @@ class DBUpdateModule:
     # ----------------------------------------------------------------
     def _fill_defaults(self, data: dict) -> dict:
         """
-        欄位檢查與預處理
+        報告 3-3-2 B.1：欄位檢查與預處理
         寫入前檢查必要欄位。若缺少非關鍵欄位（如效期），
         系統調用範本資料庫（ingredients 表）自動填入預設值。
         """
@@ -61,7 +61,7 @@ class DBUpdateModule:
     # ----------------------------------------------------------------
     def create_inventory(self, data: dict):
         """
-        新增庫存
+        報告 3-3-2 B.2：新增庫存
         寫入操作確保原子性。
         回傳 Supabase APIResponse。
         """
@@ -94,7 +94,7 @@ class DBUpdateModule:
     # ----------------------------------------------------------------
     def update_inventory(self, inventory_id: int, data: dict):
         """
-        修改庫存
+        報告 3-3-2 B.2：修改庫存
         只更新有提供的欄位。
         回傳 Supabase APIResponse，若無欄位可更新則回傳 None。
         """
@@ -140,35 +140,11 @@ class DBUpdateModule:
         return result
 
     # ----------------------------------------------------------------
-    # B.2 資料寫入操作（建立食材範本）
-    # ----------------------------------------------------------------
-    def create_ingredient(self, data: dict):
-        """新增食材範本至 ingredients 資料表"""
-        result = (
-            self.db.table("ingredients")
-            .insert(data)
-            .execute()
-        )
-        return result.data[0] if result.data else None
-
-    # ----------------------------------------------------------------
     # B.2 資料寫入操作（建立使用者）
     # ----------------------------------------------------------------
     def create_user(self, username: str, user_id: str | None = None):
-        """建立新使用者，若未傳入 user_id 則自動使用 Admin Auth 註冊產生真實 UUID"""
-        if not user_id:
-            # 1. 自動於 Supabase Auth 系統中註冊該管理使用者，滿足外鍵約束
-            unique_suffix = uuid.uuid4().hex[:6]
-            test_email = f"{username}_{unique_suffix}@smartfridge.com"
-            auth_user = self.db.auth.admin.create_user({
-                "email": test_email,
-                "password": f"Password_{unique_suffix}!",
-                "email_confirm": True,
-                "user_metadata": {"username": username}
-            })
-            user_id = auth_user.user.id
-
-        # 2. 將使用者基本資料寫入 public.users 資料表
+        """建立新使用者，若未傳入 user_id 則自動產生 UUID"""
+        user_id = user_id or str(uuid.uuid4())
         result = (
             self.db.table("users")
             .insert({"user_id": user_id, "username": username})
@@ -182,7 +158,7 @@ class DBUpdateModule:
     # ----------------------------------------------------------------
     def _log_operation(self, operation: str, table: str, data: dict):
         """
-        日誌記錄
+        報告 3-3-2 B.3：日誌記錄
         寫入成功則於日誌資料表（System Log）新增操作軌跡。
 
         注意：目前資料庫中尚未建立 system_log 資料表。

@@ -13,6 +13,7 @@ interface Props {
   onFill: (data: { name: string; category?: string }) => void;
   deviceMode?: boolean;
   onDirectAdd?: (name: string, category?: string) => Promise<void>;
+  inputMode?: 'camera' | 'gallery';
 }
 
 const CATEGORY_ICONS: Record<string, string> = {
@@ -20,8 +21,8 @@ const CATEGORY_ICONS: Record<string, string> = {
   調味料:'🧂', 冷凍食品:'🧊', 其他:'📦',
 };
 
-export default function ImageRecognizeModal({ onClose, onFill, deviceMode, onDirectAdd }: Props) {
-  const [mode, setMode]         = useState<'choose' | 'camera' | 'preview'>(deviceMode ? 'camera' : 'choose');
+export default function ImageRecognizeModal({ onClose, onFill, deviceMode, onDirectAdd, inputMode }: Props) {
+  const [mode, setMode]         = useState<'choose' | 'camera' | 'preview'>(deviceMode ? 'camera' : inputMode === 'camera' ? 'camera' : 'choose');
   const [imgSrc, setImgSrc]     = useState<string | null>(null);
   const [imgBase64, setImgBase64] = useState<string | null>(null);
   const [loading, setLoading]   = useState(false);
@@ -76,6 +77,10 @@ export default function ImageRecognizeModal({ onClose, onFill, deviceMode, onDir
       } else {
         startCamera();
       }
+    } else if (inputMode === 'camera') {
+      startCamera();
+    } else if (inputMode === 'gallery') {
+      fileRef.current?.click();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -116,6 +121,11 @@ export default function ImageRecognizeModal({ onClose, onFill, deviceMode, onDir
     setClosestClass('');
     if (deviceMode) {
       startCamera();
+    } else if (inputMode === 'camera') {
+      startCamera();
+      setMode('camera');
+    } else if (inputMode === 'gallery') {
+      fileRef.current?.click();
     } else {
       stopCamera();
       setMode('choose');

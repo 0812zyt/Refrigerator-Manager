@@ -237,7 +237,7 @@ export default function ImageRecognizeModal({ onClose, onFill, deviceMode, onDir
                   </>
                 ) : (
                   <>
-                    <div style={{ color:'#e2e8f0', fontSize:13, fontWeight:700, padding:'52px 14px 6px', flexShrink:0 }}>辨識結果</div>
+                    <div style={{ color:'#e2e8f0', fontSize:14, fontWeight:700, padding:'18px 14px 8px', flexShrink:0, textAlign:'center' }}>辨識結果</div>
                     <div style={{ flex:1, overflowY:'auto', padding:'8px 14px' }}>
 
                       {/* 1. 高信心度結果 */}

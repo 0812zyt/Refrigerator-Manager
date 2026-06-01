@@ -95,7 +95,7 @@ export default function AddItemModal({ userId, prefill, cachedCategories, cached
   const [allIngredients, setAllIngredients] = useState<Ingredient[]>(cachedIngredients ?? []);
   const [ingredients, setIngredients] = useState<Ingredient[]>(cachedIngredients ?? []);
   const today = new Date().toISOString().slice(0, 10);
-  const [form, setForm] = useState({ name: prefill?.name ?? '', category: prefill?.category ?? '', quantity: '1', expiry: '', purchaseDate: today });
+  const [form, setForm] = useState({ name: prefill?.name ?? '', category: prefill?.category ?? 'Others', quantity: '1', expiry: '', purchaseDate: today });
   const [selectedIng, setSelectedIng] = useState<Ingredient | null>(null);
   const [saving, setSaving]   = useState(false);
   const [error, setError]     = useState('');
@@ -149,6 +149,7 @@ export default function AddItemModal({ userId, prefill, cachedCategories, cached
 
   const handleSave = async () => {
     if (!form.name.trim()) { setError('請輸入食材名稱'); return; }
+    if (!form.expiry) { setError('請選擇到期日'); return; }
     setError(''); setSaving(true);
     try {
       let ing = selectedIng
@@ -247,7 +248,7 @@ export default function AddItemModal({ userId, prefill, cachedCategories, cached
           <div style={fieldStyle}>
             <label style={labelStyle}>分類</label>
             <select style={{ ...inputStyle, textAlign: 'center' }} value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
-              <option value="">全部分類</option>
+              <option value="Others">Others</option>
               {categories.map(c => <option key={c.category_id} value={c.category_name}>{CATEGORY_ICONS[c.category_name] ?? '📦'} {c.category_name}</option>)}
             </select>
           </div>
@@ -275,7 +276,7 @@ export default function AddItemModal({ userId, prefill, cachedCategories, cached
           </div>
 
           <div style={fieldStyle}>
-            <label style={labelStyle}>到期日</label>
+            <label style={labelStyle}>到期日 *</label>
             <DatePicker
               selected={form.expiry ? new Date(form.expiry) : null}
               onChange={(date: Date | null) => setForm({ ...form, expiry: date ? date.toISOString().slice(0, 10) : '' })}

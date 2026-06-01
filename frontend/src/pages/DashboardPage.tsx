@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTheme } from '../context/ThemeContext';
-import { getInventory, deleteInventory, getCategories, getIngredients, getPushVapidKey, subscribePush, unsubscribePush, wakeSystem } from '../api/client';
+import { getInventory, deleteInventory, updateInventory, getCategories, getIngredients, getPushVapidKey, subscribePush, unsubscribePush, wakeSystem } from '../api/client';
 import type { InventoryItem, Category, Ingredient, User } from '../api/types';
 import AddChoiceModal from '../components/AddChoiceModal';
 import AddItemModal from '../components/AddItemModal';
@@ -19,7 +19,9 @@ export const CATEGORY_ICONS: Record<string, string> = {
 
 const getDaysLeft = (d: string) => {
   const t = new Date(); t.setHours(0,0,0,0);
-  return Math.ceil((new Date(d).getTime() - t.getTime()) / 86400000);
+  const [y, m, day] = d.split('-').map(Number);
+  const exp = new Date(y, m - 1, day);
+  return Math.round((exp.getTime() - t.getTime()) / 86400000);
 };
 
 
@@ -29,64 +31,254 @@ interface EnrichedItem extends InventoryItem { categoryName?: string; }
 
 
 // ── Recipe View ───────────────────────────────────────────────────
-const RECIPES = [
-  { name:'炒蛋', emoji:'🍳', ingredients:['雞蛋','Egg','蛋'], tags:['快速','早餐'] },
-  { name:'蔬菜炒', emoji:'🥬', ingredients:['菠菜','Spinach','高麗菜','空心菜','青江菜','Lettuce','萵苣'], tags:['健康','素食'] },
-  { name:'番茄炒蛋', emoji:'🍅', ingredients:['雞蛋','Egg','蛋','番茄','Tomato'], tags:['家常','快速'] },
-  { name:'水果沙拉', emoji:'🥗', ingredients:['蘋果','Apple','草莓','Strawberry','香蕉','Banana','橘子'], tags:['健康','無須烹飪'] },
-  { name:'牛奶燕麥', emoji:'🥣', ingredients:['牛奶','Milk','燕麥','Oat'], tags:['早餐','快速'] },
-  { name:'起司吐司', emoji:'🧀', ingredients:['起司','Cheese','Cheddar','吐司','Bread'], tags:['早餐','快速'] },
-  { name:'雞肉料理', emoji:'🍗', ingredients:['雞肉','Chicken','雞胸','Chicken Breast'], tags:['高蛋白','主菜'] },
-  { name:'牛肉料理', emoji:'🥩', ingredients:['牛肉','Beef','牛排'], tags:['主菜'] },
-  { name:'蝦料理', emoji:'🦐', ingredients:['蝦','Shrimp','蝦子'], tags:['海鮮'] },
-  { name:'玉米湯', emoji:'🌽', ingredients:['玉米','Corn'], tags:['湯品'] },
-];
+const GROQ_KEY = import.meta.env.VITE_GROQ_API_KEY as string;
 
-function RecipeView({ items }: { items: EnrichedItem[] }) {
-  const names = items.map(i => i.ingredient_name ?? '');
+interface IngItem { name: string; amount: string; }
+interface SeasonItem { name: string; amount: string; note: string; }
 
-  const matched = RECIPES.map(r => {
-    const hit = r.ingredients.filter(ing =>
-      names.some(n => n.toLowerCase().includes(ing.toLowerCase()))
-    );
-    return { ...r, hit, canMake: hit.length > 0 };
-  }).filter(r => r.canMake);
+interface GeminiRecipe {
+  name: string;
+  emoji: string;
+  used: string[];
+  missing: string[];
+  description: string;
+  ingredients: IngItem[];
+  steps: string[];
+  seasonings: SeasonItem[];
+  calories: number;
+  cookTime: number;
+  servings: number;
+}
 
-  const suggestions = matched.length > 0
-    ? matched
-    : RECIPES.slice(0, 4).map(r => ({ ...r, hit: [] as string[], canMake: false }));
+async function fetchGeminiRecipes(ingredients: string[]): Promise<GeminiRecipe[]> {
+  const prompt = `你是一個食譜助手。根據以下冰箱食材，推薦 4 道料理。
+
+食材清單：${ingredients.join('、')}
+
+請以 JSON 陣列格式回傳，格式如下（只回傳 JSON，不要其他說明）：
+[
+  {
+    "name": "料理名稱",
+    "emoji": "一個相關表情符號",
+    "used": ["會用到的主要食材名稱（不含調味料，只寫名稱）"],
+    "missing": ["冰箱裡沒有、但這道料理必需的主要食材（不包含鹽、糖、油、醬油、胡椒等常見調味料）"],
+    "description": "簡短料理描述（15字以內）",
+    "ingredients": [{"name": "食材名", "amount": "份量（如300克、2顆、150毫升）"}],
+    "steps": ["每個步驟寫成一句完整動作，說明動作、火候或時間，例如：煮沸水加入少許鹽，放入義大利麵煮8分鐘至彈牙"],
+    "seasonings": [{"name": "調味料名", "amount": "份量（如1小匙、適量）", "note": "用途（如提味、增香）"}],
+    "calories": 每份大約熱量整數,
+    "cookTime": 烹飪時間分鐘數整數,
+    "servings": 幾人份整數
+  }
+]
+注意：
+- 所有文字（食材名、步驟、調味料等）一律使用繁體中文，不可出現英文
+- used / missing 只填主要食材名稱（不含份量），調味料一律放 seasonings
+- ingredients 和 seasonings 都必須是物件陣列，包含 name、amount、（seasonings 還有 note）
+- seasonings 給 2～5 項常見調味料，每項都要有 amount
+- steps 給 4～7 步，每步一句話（50字以內），像食譜書一樣清楚說明動作與火候
+- calories、cookTime、servings 只填整數數字`;
+
+  const res = await fetch(
+    'https://api.groq.com/openai/v1/chat/completions',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${GROQ_KEY}`,
+      },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.7,
+      }),
+    }
+  );
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message ?? 'Groq API error');
+  const text: string = data.choices?.[0]?.message?.content ?? '';
+  if (!text) throw new Error('Groq 回傳空內容');
+  const clean = text.replace(/```json|```/g, '').trim();
+  return JSON.parse(clean);
+}
+
+interface RecipeState {
+  recipes: GeminiRecipe[];
+  loading: boolean;
+  error: string;
+  fetched: boolean;
+}
+
+function RecipeDetailModal({ recipe, onClose }: { recipe: GeminiRecipe; onClose: () => void }) {
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.55)', backdropFilter:'blur(6px)', display:'flex', alignItems:'flex-end', justifyContent:'center', zIndex:300, padding:'0 0 0 0' }}
+      onClick={onClose}>
+      <div style={{ background:'var(--surface)', borderRadius:'24px 24px 0 0', width:'100%', maxWidth:520, maxHeight:'88vh', overflowY:'auto', padding:'0 0 40px', boxShadow:'0 -8px 40px rgba(0,0,0,0.2)', animation:'slideUp 0.22s ease' }}
+        onClick={e => e.stopPropagation()}>
+        {/* 拖曳把手 */}
+        <div style={{ display:'flex', justifyContent:'center', padding:'12px 0 0' }}>
+          <div style={{ width:36, height:4, borderRadius:2, background:'var(--border)' }} />
+        </div>
+        {/* Emoji header */}
+        <div style={{ height:140, background:'var(--surface-2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:72, margin:'12px 0 0' }}>
+          {recipe.emoji}
+        </div>
+        <div style={{ padding:'20px 24px 0' }}>
+          {/* 標題 */}
+          <h2 style={{ fontSize:22, fontWeight:800, color:'var(--text)', margin:'0 0 12px', lineHeight:1.3 }}>{recipe.name}</h2>
+
+          {/* 份量 + 時間 */}
+          <div style={{ display:'flex', marginBottom:20, borderTop:'1px solid var(--border)', borderBottom:'1px solid var(--border)' }}>
+            {recipe.servings > 0 && (
+              <div style={{ flex:1, padding:'14px 0', textAlign:'center', borderRight:'1px solid var(--border)' }}>
+                <div style={{ fontSize:11, color:'#d97706', fontWeight:700, marginBottom:4 }}>份量</div>
+                <div style={{ fontSize:18, fontWeight:800, color:'#d97706' }}>{recipe.servings} 人份</div>
+              </div>
+            )}
+            {recipe.cookTime > 0 && (
+              <div style={{ flex:1, padding:'14px 0', textAlign:'center' }}>
+                <div style={{ fontSize:11, color:'#d97706', fontWeight:700, marginBottom:4 }}>時間</div>
+                <div style={{ fontSize:18, fontWeight:800, color:'#d97706' }}>{recipe.cookTime} 分鐘</div>
+              </div>
+            )}
+          </div>
+
+          {/* 食材 */}
+          <div style={{ marginBottom:12 }}>
+            <div style={{ fontSize:15, fontWeight:800, color:'var(--text)', marginBottom:10, paddingBottom:8, borderBottom:'1px solid var(--border)' }}>食材</div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px 20px' }}>
+              {(recipe.ingredients?.length ? recipe.ingredients : recipe.used.map(u => ({ name: u, amount: '' }))).map((ing, i) => (
+                <div key={i} style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:8 }}>
+                  <span style={{ fontSize:13, color:'var(--text)' }}>{ing.name}</span>
+                  <span style={{ fontSize:13, color:'#d97706', fontWeight:600, flexShrink:0 }}>{ing.amount}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 建議調味 */}
+          {recipe.seasonings && recipe.seasonings.length > 0 && (
+            <div style={{ marginBottom:20 }}>
+              <div style={{ fontSize:15, fontWeight:800, color:'var(--text)', marginBottom:10, paddingBottom:8, borderBottom:'1px solid var(--border)' }}>調味料</div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px 20px' }}>
+                {recipe.seasonings.map((s, i) => (
+                  <div key={i} style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:8 }}>
+                    <span style={{ fontSize:13, color:'var(--text)' }}>{s.name}</span>
+                    <span style={{ fontSize:13, color:'#d97706', fontWeight:600, flexShrink:0 }}>{s.amount}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 步驟 */}
+          {recipe.steps && recipe.steps.length > 0 && (
+            <div style={{ marginBottom:20 }}>
+              <div style={{ fontSize:12, fontWeight:700, color:'var(--text-3)', marginBottom:12, letterSpacing:0.5 }}>步驟</div>
+              <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+                {recipe.steps.map((step, i) => (
+                  <div key={i} style={{ display:'flex', gap:12, alignItems:'flex-start' }}>
+                    <div style={{ width:26, height:26, borderRadius:8, background:'linear-gradient(135deg,#6366f1,#8b5cf6)', color:'#fff', fontSize:13, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>{i + 1}</div>
+                    <div style={{ fontSize:14, color:'var(--text)', lineHeight:1.65, paddingTop:3 }}>{step}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RecipeView({ items, state, setState }: {
+  items: EnrichedItem[];
+  state: RecipeState;
+  setState: (s: RecipeState) => void;
+}) {
+  const { recipes, loading, error, fetched } = state;
+  const [selected, setSelected] = useState<GeminiRecipe | null>(null);
+  const names = items.map(i => i.ingredient_name ?? '').filter(Boolean);
+  const nameKey = names.join(',');
+
+  const doFetch = (nameList: string[]) => {
+    setState({ recipes: [], loading: true, error: '', fetched: true });
+    fetchGeminiRecipes(nameList)
+      .then(r => setState({ recipes: r, loading: false, error: '', fetched: true }))
+      .catch(e => setState({ recipes: [], loading: false, error: e instanceof Error ? e.message : '推薦失敗，請稍後再試', fetched: true }));
+  };
+
+  useEffect(() => {
+    if (names.length === 0 || fetched) return;
+    doFetch(names);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nameKey]);
 
   return (
     <div>
-      <div style={{ marginBottom:20 }}>
-        <h2 style={{ fontSize:18, fontWeight:800, color:'var(--text)', margin:'0 0 4px' }}>今天吃什麼？</h2>
-        <p style={{ fontSize:13, color:'var(--text-3)', margin:0 }}>
-          {matched.length > 0 ? `根據冰箱 ${items.length} 樣食材推薦` : '加入食材後顯示個人化推薦'}
-        </p>
+      <div style={{ marginBottom:20, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+        <div>
+          <h2 style={{ fontSize:18, fontWeight:800, color:'var(--text)', margin:'0 0 4px' }}>今天吃什麼？</h2>
+          <p style={{ fontSize:13, color:'var(--text-3)', margin:0 }}>
+            {names.length > 0 ? `AI 根據 ${items.length} 樣食材推薦` : '加入食材後顯示 AI 推薦'}
+          </p>
+        </div>
+        {names.length > 0 && !loading && (
+          <button onClick={() => doFetch(names)}
+            style={{ fontSize:12, padding:'6px 14px', borderRadius:10, border:'1px solid var(--border)', background:'var(--surface)', color:'var(--text-3)', cursor:'pointer' }}>
+            重新推薦
+          </button>
+        )}
       </div>
 
+      {loading && (
+        <div style={{ textAlign:'center', padding:'40px 0', color:'var(--text-3)' }}>
+          <div style={{ width:28, height:28, border:'3px solid var(--border)', borderTopColor:'var(--accent)', borderRadius:'50%', animation:'spin 0.7s linear infinite', margin:'0 auto 12px' }} />
+          AI 思考中…
+        </div>
+      )}
+
+      {!loading && error && (
+        <div style={{ textAlign:'center', padding:'40px 0', color:'var(--text-3)' }}>
+          <div style={{ fontSize:36, marginBottom:8 }}>⚠️</div>
+          <div style={{ fontSize:13, marginBottom:12, color:'#f87171' }}>{error}</div>
+          <button onClick={() => doFetch(names)}
+            style={{ fontSize:13, padding:'8px 20px', borderRadius:10, border:'none', background:'var(--accent)', color:'#fff', cursor:'pointer' }}>
+            重試
+          </button>
+        </div>
+      )}
+
+      {!loading && !error && recipes.length === 0 && names.length === 0 && (
+        <div style={{ textAlign:'center', padding:'40px 0', color:'var(--text-3)' }}>
+          <div style={{ fontSize:40, marginBottom:8 }}>🍽️</div>加入食材後顯示 AI 食譜推薦
+        </div>
+      )}
+
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))', gap:12 }}>
-        {suggestions.map(r => (
-          <div key={r.name} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:16, overflow:'hidden', boxShadow:'var(--shadow)', cursor:'pointer' }}>
-            <div style={{ height:100, background:'var(--surface-2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:52 }}>
+        {recipes.map((r, i) => (
+          <div key={i} onClick={() => setSelected(r)}
+            style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:16, overflow:'hidden', boxShadow:'var(--shadow)', cursor:'pointer', transition:'transform 0.15s, box-shadow 0.15s' }}
+            onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)'; (e.currentTarget as HTMLDivElement).style.boxShadow = 'var(--shadow-md)'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.transform = 'none'; (e.currentTarget as HTMLDivElement).style.boxShadow = 'var(--shadow)'; }}>
+            <div style={{ height:100, background:'var(--surface-2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:52, position:'relative' }}>
               {r.emoji}
+              {r.calories > 0 && (
+                <span style={{ position:'absolute', bottom:6, right:6, fontSize:10, fontWeight:700, color:'#f97316', background:'rgba(255,255,255,0.85)', borderRadius:6, padding:'2px 6px' }}>{r.calories} kcal</span>
+              )}
             </div>
             <div style={{ padding:'10px 12px 12px' }}>
               <div style={{ fontWeight:700, fontSize:14, color:'var(--text)', marginBottom:6 }}>{r.name}</div>
-              <div style={{ display:'flex', gap:4, flexWrap:'wrap' }}>
-                {r.tags.map(t => (
-                  <span key={t} style={{ fontSize:10, fontWeight:600, background:'var(--accent-bg)', color:'var(--accent)', borderRadius:6, padding:'2px 7px' }}>{t}</span>
-                ))}
-              </div>
-              {r.canMake && (
-                <div style={{ marginTop:8, fontSize:11, color:'var(--text-3)' }}>
-                  有：{r.hit.join('、')}
-                </div>
+              {r.used.length > 0 && (
+                <div style={{ fontSize:10, color:'#22c55e' }}>✓ {r.used.join('、')}</div>
               )}
             </div>
           </div>
         ))}
       </div>
+
+      {selected && <RecipeDetailModal recipe={selected} onClose={() => setSelected(null)} />}
     </div>
   );
 }
@@ -280,6 +472,7 @@ export default function DashboardPage({ user, onLogout }: Props) {
   const [items, setItems]           = useState<EnrichedItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [allIngredients, setAllIngredients] = useState<Ingredient[]>([]);
+  const [recipeState, setRecipeState] = useState<RecipeState>({ recipes: [], loading: false, error: '', fetched: false });
   const [loading, setLoading]       = useState(true);
   const [loadError, setLoadError]   = useState(false);
   const [activeCategory, setActiveCategory] = useState('全部');
@@ -404,7 +597,7 @@ export default function DashboardPage({ user, onLogout }: Props) {
                 </div>
                 <div style={{ fontSize:14, color:'var(--text-3)', marginTop:2 }}>{days[now.getDay()]}</div>
               </div>
-              <RecipeView items={items} />
+              <RecipeView items={items} state={recipeState} setState={setRecipeState} />
             </>
           );
         })()}
@@ -490,12 +683,17 @@ export default function DashboardPage({ user, onLogout }: Props) {
         ) : viewMode === 'grid' ? (
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))', gap:12 }}>
             {[...filtered].sort((a,b) => new Date(a.expire_date).getTime()-new Date(b.expire_date).getTime())
-              .map(item => <ItemCard key={item.inventory_id} item={item} viewMode="grid" onEdit={() => { setEditItem(item); setModal('edit'); }} onDelete={() => setDeleteConfirm(item.inventory_id)} />)}
+              .map(item => <ItemCard key={item.inventory_id} item={item} viewMode="grid" onEdit={() => { setEditItem(item); setModal('edit'); }} onDelete={() => setDeleteConfirm(item.inventory_id)} onQuantityChange={null} />)}
           </div>
         ) : (
           <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
             {[...filtered].sort((a,b) => new Date(a.expire_date).getTime()-new Date(b.expire_date).getTime())
-              .map(item => <ItemCard key={item.inventory_id} item={item} viewMode="list" onEdit={() => { setEditItem(item); setModal('edit'); }} onDelete={() => setDeleteConfirm(item.inventory_id)} />)}
+              .map(item => <ItemCard key={item.inventory_id} item={item} viewMode="list" onEdit={() => { setEditItem(item); setModal('edit'); }} onDelete={() => setDeleteConfirm(item.inventory_id)}
+                onQuantityChange={async (delta) => {
+                  const next = Math.max(1, (item.quantity ?? 1) + delta);
+                  setItems(prev => prev.map(i => i.inventory_id === item.inventory_id ? { ...i, quantity: next } : i));
+                  await updateInventory(item.inventory_id, { quantity: next });
+                }} />)}
           </div>
         )}
         </>}
@@ -541,13 +739,13 @@ export default function DashboardPage({ user, onLogout }: Props) {
   );
 }
 
-function ItemCard({ item, viewMode, onEdit, onDelete }: { item: EnrichedItem; viewMode: 'grid'|'list'; onEdit: ()=>void; onDelete: ()=>void }) {
+function ItemCard({ item, viewMode, onEdit, onDelete, onQuantityChange }: { item: EnrichedItem; viewMode: 'grid'|'list'; onEdit: ()=>void; onDelete: ()=>void; onQuantityChange: ((delta: number) => void) | null }) {
   const days = getDaysLeft(item.expire_date);
   const [hovered, setHovered] = useState(false);
   const photo = localStorage.getItem(`fridge_photo_product_${item.inventory_id}`);
 
   const barColor = days < 0 ? '#ef4444' : days <= 2 ? '#f59e0b' : days <= 7 ? '#eab308' : '#22c55e';
-  const dayLabel = days < 0 ? '已過期' : days === 0 ? '今天到期' : `${days} 天後到期`;
+  const dayLabel = days < 0 ? `已過期 ${Math.abs(days)} 天` : days === 0 ? '今天到期' : `剩 ${days} 天`;
 
   const cardBase: React.CSSProperties = {
     background:'var(--surface)', border:'1.5px solid var(--border)',
@@ -599,8 +797,17 @@ function ItemCard({ item, viewMode, onEdit, onDelete }: { item: EnrichedItem; vi
           {item.categoryName ?? '未分類'} · 數量 {item.quantity} · 到期 {item.expire_date}
         </div>
       </div>
-      <div style={{ display:'flex', alignItems:'center', gap:10, flexShrink:0 }}>
+      <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
         <span style={{ fontSize:12, color: barColor, fontWeight:600, whiteSpace:'nowrap' }}>{dayLabel}</span>
+        {onQuantityChange && (
+          <div onClick={e => e.stopPropagation()} style={{ display:'flex', alignItems:'center', gap:4, background:'var(--surface-2)', borderRadius:8, padding:'2px 4px' }}>
+            <button onClick={() => onQuantityChange(-1)}
+              style={{ width:22, height:22, borderRadius:6, border:'none', background:'none', cursor:'pointer', fontSize:16, fontWeight:700, color:'var(--text-2)', display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1 }}>−</button>
+            <span style={{ fontSize:13, fontWeight:700, color:'var(--text)', minWidth:16, textAlign:'center' }}>{item.quantity ?? 1}</span>
+            <button onClick={() => onQuantityChange(+1)}
+              style={{ width:22, height:22, borderRadius:6, border:'none', background:'none', cursor:'pointer', fontSize:16, fontWeight:700, color:'var(--text-2)', display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1 }}>＋</button>
+          </div>
+        )}
         <button onClick={e => { e.stopPropagation(); onDelete(); }}
           style={{ width:28, height:28, borderRadius:7, border:'none', background:'var(--surface-2)', cursor:'pointer', fontSize:13, display:'flex', alignItems:'center', justifyContent:'center', opacity: hovered ? 1 : 0.35, transition:'opacity 0.15s' }}>🗑️</button>
       </div>

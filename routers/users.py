@@ -27,7 +27,7 @@ def get_users():
 def create_user(body: UserCreate):
     """建立新使用者"""
     update_module = DBUpdateModule()
-    user = update_module.create_user(body.username)
+    user = update_module.create_user(body.username, user_id=body.user_id)
     if not user:
         raise HTTPException(status_code=500, detail="建立使用者失敗")
     return user

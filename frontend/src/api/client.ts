@@ -25,7 +25,8 @@ async function request<T>(path: string, init?: RequestInit, retried = false): Pr
 
 // Users
 export const getUsers = () => request<User[]>('/users');
-export const createUser = (data: { username: string }) =>
+export const getUserById = (id: string) => request<User>(`/users/${id}`);
+export const createUser = (data: { username: string; user_id?: string }) =>
   request<User>('/users', { method: 'POST', body: JSON.stringify(data) });
 
 // Categories

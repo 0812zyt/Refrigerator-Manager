@@ -10,7 +10,7 @@ interface RecognizeResult {
 
 interface Props {
   onClose: () => void;
-  onFill: (data: { name: string; category?: string }) => void;
+  onFill: (data: { name: string; category?: string; photo?: string }) => void;
   deviceMode?: boolean;
   onDirectAdd?: (name: string, category?: string) => Promise<void>;
 }
@@ -240,7 +240,7 @@ export default function ImageRecognizeModal({ onClose, onFill, deviceMode, onDir
                     {lowConfidence && <div style={{ color:'#fbbf24', fontSize:12, padding:'10px 14px 4px', flexShrink:0 }}>⚠️ 信心度不足，請選擇候選項目</div>}
                     <div style={{ flex:1, overflowY:'auto', padding:'14px 14px 8px' }}>
                       {results && results.length > 0 && results.map((item, i) => (
-                        <button key={i} disabled={addState === 'adding'} onClick={async () => { if (!onDirectAdd) { onFill({ name: item.name, category: item.category }); return; } setAddState('adding'); setAddedName(item.name); await onDirectAdd(item.name, item.category); setAddState('done'); }}
+                        <button key={i} disabled={addState === 'adding'} onClick={async () => { if (!onDirectAdd) { onFill({ name: item.name, category: item.category, photo: imgSrc ?? undefined }); return; } setAddState('adding'); setAddedName(item.name); await onDirectAdd(item.name, item.category); setAddState('done'); }}
                           style={{ display:'block', width:'100%', padding:'12px 16px', background: addState === 'adding' ? 'rgba(16,185,129,0.08)' : 'rgba(16,185,129,0.15)', border:'1px solid rgba(16,185,129,0.3)', borderRadius:10, color:'#a7f3d0', fontWeight:700, fontSize:15, textAlign:'left', cursor: addState === 'adding' ? 'wait' : 'pointer', marginBottom:10 }}>
                           {addState === 'adding' && addedName === item.name ? '新增中…' : `✅ ${item.name}`}
                         </button>
@@ -248,7 +248,7 @@ export default function ImageRecognizeModal({ onClose, onFill, deviceMode, onDir
                       {top5 && top5.length > 0 && (
                         <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
                           {top5.map((cand, idx) => (
-                            <button key={idx} disabled={addState === 'adding'} onClick={async () => { if (!onDirectAdd) { onFill({ name: cand.label }); return; } setAddState('adding'); setAddedName(cand.label); await onDirectAdd(cand.label); setAddState('done'); }}
+                            <button key={idx} disabled={addState === 'adding'} onClick={async () => { if (!onDirectAdd) { onFill({ name: cand.label, photo: imgSrc ?? undefined }); return; } setAddState('adding'); setAddedName(cand.label); await onDirectAdd(cand.label); setAddState('done'); }}
                               style={{ padding:'8px 14px', background: addState === 'adding' && addedName === cand.label ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.1)', border:'1px solid rgba(255,255,255,0.2)', borderRadius:10, color:'#e2e8f0', fontSize:13, cursor: addState === 'adding' ? 'wait' : 'pointer', whiteSpace:'nowrap' }}>
                               {addState === 'adding' && addedName === cand.label ? '新增中…' : cand.label}
                             </button>
@@ -347,7 +347,7 @@ export default function ImageRecognizeModal({ onClose, onFill, deviceMode, onDir
                             <div style={{ fontWeight:700, color:'#065f46', fontSize: 16 }}>{item.name}</div>
                           </div>
                           <button style={{ padding:'8px 18px', background:'linear-gradient(135deg,#10b981,#059669)', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:700, cursor:'pointer', boxShadow: '0 2px 6px rgba(16,185,129,0.2)' }}
-                            onClick={() => onFill({ name: item.name, category: item.category })}>
+                            onClick={() => onFill({ name: item.name, category: item.category, photo: imgSrc ?? undefined })}>
                             直接使用
                           </button>
                         </div>
@@ -367,7 +367,7 @@ export default function ImageRecognizeModal({ onClose, onFill, deviceMode, onDir
                           <div style={{ fontWeight:700, color:'#065f46', fontSize:16 }}>{closestClass}</div>
                         </div>
                         <button style={{ padding:'8px 18px', background:'linear-gradient(135deg,#10b981,#059669)', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:700, cursor:'pointer', boxShadow:'0 2px 6px rgba(16,185,129,0.2)' }}
-                          onClick={() => onFill({ name: closestClass })}>
+                          onClick={() => onFill({ name: closestClass, photo: imgSrc ?? undefined })}>
                           直接使用
                         </button>
                       </div>
@@ -382,7 +382,7 @@ export default function ImageRecognizeModal({ onClose, onFill, deviceMode, onDir
                       !results?.some(r => r.name.toLowerCase() === cand.label.toLowerCase()) &&
                       cand.label.toLowerCase() !== closestClass.toLowerCase()
                     ).map((cand, idx) => (
-                      <button key={idx} onClick={() => onFill({ name: cand.label })} style={{
+                      <button key={idx} onClick={() => onFill({ name: cand.label, photo: imgSrc ?? undefined })} style={{
                         display:'inline-flex', alignItems:'center', gap:6,
                         padding:'8px 14px',
                         background:'#f8fafc', borderRadius:10, border:'1px solid #e2e8f0',

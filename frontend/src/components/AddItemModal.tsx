@@ -7,7 +7,7 @@ import 'react-datepicker/dist/react-datepicker.css';
 
 interface Props {
   userId: string;
-  prefill?: { name?: string; category?: string } | null;
+  prefill?: { name?: string; category?: string; photo?: string } | null;
   cachedCategories?: Category[];
   cachedIngredients?: Ingredient[];
   onClose: () => void;
@@ -99,7 +99,7 @@ export default function AddItemModal({ userId, prefill, cachedCategories, cached
   const [selectedIng, setSelectedIng] = useState<Ingredient | null>(null);
   const [saving, setSaving]   = useState(false);
   const [error, setError]     = useState('');
-  const [productPhoto, setProductPhoto] = useState<string | null>(null);
+  const [productPhoto, setProductPhoto] = useState<string | null>(prefill?.photo ?? null);
   const [expirePhoto, setExpirePhoto]   = useState<string | null>(null);
   const [picker, setPicker] = useState<null | 'product' | 'expire'>(null);
   const skipClearRef = useRef(false);

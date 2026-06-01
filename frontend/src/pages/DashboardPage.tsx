@@ -574,7 +574,7 @@ export default function DashboardPage({ user, onLogout }: Props) {
   const [modal, setModal]           = useState<ModalState>(null);
   const [editItem, setEditItem]     = useState<EnrichedItem | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
-  const [prefill, setPrefill]       = useState<{name?:string;category?:string}|null>(null);
+  const [prefill, setPrefill]       = useState<{name?:string;category?:string;photo?:string}|null>(null);
   const [showSearch, setShowSearch] = useState(false);
   const [viewMode, setViewMode] = useState<'grid'|'list'>('grid');
   const [selectionMode, setSelectionMode] = useState(false);
@@ -842,7 +842,15 @@ export default function DashboardPage({ user, onLogout }: Props) {
         </button>
 
         {/* Modals */}
-        {modal === 'image' && <ImageRecognizeModal deviceMode onClose={() => setModal(null)} onFill={d => { setPrefill(d); setModal('manual'); }} onDirectAdd={handleDirectAdd} />}
+        {modal === 'image' && <ImageRecognizeModal deviceMode onClose={() => setModal(null)} onFill={async d => {
+          let category = d.category;
+          if (!category) {
+            const inferred = await inferCategory(d.name, categories);
+            if (inferred) category = inferred.category_name;
+          }
+          setPrefill({ ...d, category });
+          setModal('manual');
+        }} onDirectAdd={handleDirectAdd} />}
         {modal === 'barcode' && <BarcodeScanModal deviceMode onClose={() => setModal(null)} onFill={d => { setPrefill(d); setModal('manual'); }} />}
         {modal === 'manual' && <AddItemModal userId={user.user_id} prefill={prefill} cachedCategories={categories} cachedIngredients={allIngredients} onClose={() => { setModal(null); setPrefill(null); }} onAdded={loadData} />}
       </div>
@@ -1198,7 +1206,15 @@ export default function DashboardPage({ user, onLogout }: Props) {
       {/* Modals */}
       {modal === 'choice' && <AddChoiceModal onManual={() => { setPrefill(null); setModal('manual'); }} onImage={() => setModal('image')} onBarcode={() => setModal('barcode')} onClose={() => setModal(null)} />}
       {modal === 'barcode' && <BarcodeScanModal onClose={() => setModal(null)} onFill={d => { setPrefill(d); setModal('manual'); }} />}
-      {modal === 'image' && <ImageRecognizeModal onClose={() => setModal(null)} onFill={d => { setPrefill(d); setModal('manual'); }} />}
+      {modal === 'image' && <ImageRecognizeModal onClose={() => setModal(null)} onFill={async d => {
+        let category = d.category;
+        if (!category) {
+          const inferred = await inferCategory(d.name, categories);
+          if (inferred) category = inferred.category_name;
+        }
+        setPrefill({ ...d, category });
+        setModal('manual');
+      }} />}
       {modal === 'manual' && <AddItemModal userId={user.user_id} prefill={prefill} cachedCategories={categories} cachedIngredients={allIngredients} onClose={() => { setModal(null); setPrefill(null); }} onAdded={loadData} />}
       {modal === 'edit' && editItem && <EditItemModal item={editItem} cachedCategories={categories} cachedIngredients={allIngredients} onClose={() => { setModal(null); setEditItem(null); }} onUpdated={loadData} />}
 

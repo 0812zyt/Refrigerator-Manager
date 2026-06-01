@@ -46,7 +46,7 @@ export const getIngredients = (category_id?: number) =>
 export const searchIngredients = (keyword: string) =>
   request<Ingredient[]>(`/ingredients/search/${encodeURIComponent(keyword)}`);
 
-export const createIngredient = (data: { name: string; category_id?: number }) =>
+export const createIngredient = (data: { name: string; category_id?: number; default_expire_days?: number }) =>
   request<Ingredient>('/ingredients', { method: 'POST', body: JSON.stringify(data) });
 
 export const updateIngredient = (id: number, data: { category_id?: number }) =>

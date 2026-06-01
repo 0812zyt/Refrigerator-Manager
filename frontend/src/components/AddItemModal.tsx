@@ -179,6 +179,10 @@ export default function AddItemModal({ userId, prefill, cachedCategories, cached
         ?? allIngredients.find(i => i.name.toLowerCase() === form.name.trim().toLowerCase())
         ?? allIngredients.find(i => i.name.toLowerCase().includes(form.name.trim().toLowerCase()))
         ?? null;
+      const needAiDays = !form.expiry && !ing?.default_expire_days;
+      const aiDaysPromise = needAiDays
+        ? inferExpireDays(ing?.name ?? form.name.trim())
+        : Promise.resolve(null);
       if (!ing) {
         let catEntry = form.category
           ? categories.find(c => c.category_name === form.category)
@@ -188,17 +192,17 @@ export default function AddItemModal({ userId, prefill, cachedCategories, cached
           if (inferred) catEntry = inferred;
         }
         catEntry = catEntry ?? categories.find(c => c.category_name === 'Others' || c.category_name === '其他');
-        ing = await createIngredient({ name: form.name.trim(), category_id: catEntry?.category_id });
+        const aiDays = await aiDaysPromise;
+        ing = await createIngredient({
+          name: form.name.trim(),
+          category_id: catEntry?.category_id,
+          ...(aiDays ? { default_expire_days: aiDays } : {}),
+        });
       }
       let expireDate = form.expiry;
       if (!expireDate) {
-        if (ing.default_expire_days) {
-          expireDate = new Date(Date.now() + ing.default_expire_days * 86400000).toISOString().slice(0, 10);
-        } else {
-          const aiDays = await inferExpireDays(ing.name ?? form.name.trim());
-          const days = aiDays ?? 7;
-          expireDate = new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
-        }
+        const days = ing.default_expire_days ?? (await aiDaysPromise) ?? 7;
+        expireDate = new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
       }
       const created = await createInventory({
         user_id: userId,

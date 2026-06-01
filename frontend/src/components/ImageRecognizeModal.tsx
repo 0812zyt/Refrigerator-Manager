@@ -12,7 +12,7 @@ interface Props {
   onClose: () => void;
   onFill: (data: { name: string; category?: string; photo?: string }) => void;
   deviceMode?: boolean;
-  onDirectAdd?: (name: string, category?: string) => Promise<void>;
+  onDirectAdd?: (name: string, category?: string, photo?: string) => Promise<void>;
 }
 
 const CATEGORY_ICONS: Record<string, string> = {
@@ -240,7 +240,7 @@ export default function ImageRecognizeModal({ onClose, onFill, deviceMode, onDir
                     <div style={{ color:'#e2e8f0', fontSize:13, fontWeight:700, padding:'52px 14px 6px', flexShrink:0 }}>辨識結果</div>
                     <div style={{ flex:1, overflowY:'auto', padding:'8px 14px' }}>
                       {results && results.length > 0 && results.map((item, i) => (
-                        <button key={i} disabled={addState === 'adding'} onClick={async () => { if (!onDirectAdd) { onFill({ name: item.name, category: item.category, photo: imgSrc ?? undefined }); return; } setAddState('adding'); setAddedName(item.name); await onDirectAdd(item.name, item.category); setAddState('done'); }}
+                        <button key={i} disabled={addState === 'adding'} onClick={async () => { if (!onDirectAdd) { onFill({ name: item.name, category: item.category, photo: imgSrc ?? undefined }); return; } setAddState('adding'); setAddedName(item.name); await onDirectAdd(item.name, item.category, imgSrc ?? undefined); setAddState('done'); }}
                           style={{ display:'block', width:'100%', padding:'12px 16px', background: addState === 'adding' ? 'rgba(16,185,129,0.08)' : 'rgba(16,185,129,0.15)', border:'1px solid rgba(16,185,129,0.3)', borderRadius:10, color:'#a7f3d0', fontWeight:700, fontSize:15, textAlign:'left', cursor: addState === 'adding' ? 'wait' : 'pointer', marginBottom:10 }}>
                           {addState === 'adding' && addedName === item.name ? '新增中…' : `✅ ${item.name}`}
                         </button>
@@ -248,7 +248,7 @@ export default function ImageRecognizeModal({ onClose, onFill, deviceMode, onDir
                       {top5 && top5.length > 0 && (
                         <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
                           {top5.map((cand, idx) => (
-                            <button key={idx} disabled={addState === 'adding'} onClick={async () => { if (!onDirectAdd) { onFill({ name: cand.label, photo: imgSrc ?? undefined }); return; } setAddState('adding'); setAddedName(cand.label); await onDirectAdd(cand.label); setAddState('done'); }}
+                            <button key={idx} disabled={addState === 'adding'} onClick={async () => { if (!onDirectAdd) { onFill({ name: cand.label, photo: imgSrc ?? undefined }); return; } setAddState('adding'); setAddedName(cand.label); await onDirectAdd(cand.label, undefined, imgSrc ?? undefined); setAddState('done'); }}
                               style={{ padding:'8px 14px', background: addState === 'adding' && addedName === cand.label ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.1)', border:'1px solid rgba(255,255,255,0.2)', borderRadius:10, color:'#e2e8f0', fontSize:13, cursor: addState === 'adding' ? 'wait' : 'pointer', whiteSpace:'nowrap' }}>
                               {addState === 'adding' && addedName === cand.label ? '新增中…' : cand.label}
                             </button>

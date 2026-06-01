@@ -748,20 +748,24 @@ export default function DashboardPage({ user, onLogout }: Props) {
 
   const handleDelete = async (id: number) => { await deleteInventory(id); setDeleteConfirm(null); loadData(); };
 
-  const handleDirectAdd = async (name: string, category?: string) => {
-    let ingId: number;
-    const existing = allIngredients.find(i => i.name.toLowerCase() === name.toLowerCase());
-    if (existing) {
-      ingId = existing.ingredient_id;
-    } else {
+  const handleDirectAdd = async (name: string, category?: string, photo?: string) => {
+    let ing = allIngredients.find(i => i.name.toLowerCase() === name.toLowerCase()) ?? null;
+    if (!ing) {
       const catEntry = category
         ? (categories.find(c => c.category_name === category) ?? await inferCategory(name, categories))
         : await inferCategory(name, categories);
-      const created = await createIngredient({ name, category_id: catEntry?.category_id });
-      ingId = created.ingredient_id;
+      ing = await createIngredient({ name, category_id: catEntry?.category_id });
     }
     const today = new Date().toISOString().slice(0, 10);
-    await createInventory({ user_id: user.user_id, ingredient_id: ingId, quantity: 1, added_date: today });
+    const days = ing.default_expire_days ?? 7;
+    const expireDate = new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
+    const created = await createInventory({
+      user_id: user.user_id, ingredient_id: ing.ingredient_id,
+      quantity: 1, added_date: today, expire_date: expireDate,
+    });
+    if (photo && created?.inventory_id) {
+      try { localStorage.setItem(`fridge_photo_product_${created.inventory_id}`, photo); } catch {}
+    }
     loadData();
   };
 

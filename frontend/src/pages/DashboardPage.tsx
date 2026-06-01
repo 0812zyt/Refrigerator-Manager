@@ -1115,9 +1115,9 @@ export default function DashboardPage({ user, onLogout }: Props) {
                   </div>
                   {/* Quantity controls */}
                   <div style={{ display:'flex', alignItems:'center', gap:6, flexShrink:0 }}>
-                    <button onClick={e => { e.stopPropagation(); updateCartQty(item.id, -1); }} style={{ width:26, height:26, borderRadius:8, border:'1px solid var(--border)', background:'var(--surface-2)', color:'var(--text)', fontSize:15, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1 }}>−</button>
-                    <span style={{ fontSize:14, fontWeight:600, color:'var(--text)', minWidth:18, textAlign:'center' }}>{item.quantity}</span>
-                    <button onClick={e => { e.stopPropagation(); updateCartQty(item.id, 1); }} style={{ width:26, height:26, borderRadius:8, border:'1px solid var(--border)', background:'var(--surface-2)', color:'#6366f1', fontSize:15, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1 }}>＋</button>
+                    <button onClick={e => { e.stopPropagation(); updateCartQty(item.id, -1); }} style={{ width:42, height:42, borderRadius:10, border:'1px solid var(--border)', background:'var(--surface-2)', color:'var(--text)', fontSize:18, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1 }}>−</button>
+                    <span style={{ fontSize:15, fontWeight:600, color:'var(--text)', minWidth:22, textAlign:'center' }}>{item.quantity}</span>
+                    <button onClick={e => { e.stopPropagation(); updateCartQty(item.id, 1); }} style={{ width:42, height:42, borderRadius:10, border:'1px solid var(--border)', background:'var(--surface-2)', color:'#6366f1', fontSize:18, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1 }}>＋</button>
                   </div>
                 </motion.div>
               );})}
@@ -1165,6 +1165,9 @@ export default function DashboardPage({ user, onLogout }: Props) {
                 {mode === 'grid' ? '⊞' : '☰'}
               </button>
             ))}
+            <button onClick={() => setSelectionMode(true)} disabled={filtered.length === 0} style={{ width:28, height:28, borderRadius:8, border:'none', background: selectionMode ? '#6366f1' : 'rgba(0,0,0,0.06)', color: selectionMode ? '#fff' : '#94a3b8', cursor: filtered.length === 0 ? 'not-allowed' : 'pointer', opacity: filtered.length === 0 ? 0.4 : 1, display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.15s' }} aria-label="多選">
+              <i className="fi fi-rr-list-check" style={{ fontSize:14, display:'flex', alignItems:'center' }} />
+            </button>
           </div>
         </div>
 

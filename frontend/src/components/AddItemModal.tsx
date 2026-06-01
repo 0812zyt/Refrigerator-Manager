@@ -240,7 +240,7 @@ export default function AddItemModal({ userId, prefill, cachedCategories, cached
             style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.5)', border: 'none', color: '#fff', borderRadius: '50%', width: 22, height: 22, cursor: 'pointer', fontSize: 12 }}>✕</button>
         </>
       ) : (
-        <span style={{ fontSize: 36, color: '#94a3b8' }}>{type === 'product' ? '📷' : '📅'}</span>
+        <i className={`fi ${type === 'product' ? 'fi-rr-camera' : 'fi-rr-calendar'}`} style={{ fontSize: 36, color: '#94a3b8', display:'flex', alignItems:'center' }} />
       )}
     </div>
   );

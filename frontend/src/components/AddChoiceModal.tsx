@@ -14,19 +14,19 @@ export default function AddChoiceModal({ onManual, onImage, onBarcode, onClose }
         <h2 style={{ ...modalTitle, textAlign:'center' }}>新增食材</h2>
         <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
           <button style={{ display:'flex', alignItems:'center', gap:14, padding:'16px 18px', borderRadius:14, border:'2px solid var(--accent)', background:'var(--accent-bg)', cursor:'pointer', width:'100%', textAlign:'left' }} onClick={onManual}>
-            <span style={{ fontSize:28 }}>✏️</span>
+            <i className="fi fi-rr-pencil" style={{ fontSize:28, color:'#0c4a6e', display:'flex', alignItems:'center' }} />
             <div>
               <div style={{ fontWeight:700, fontSize:15, color:'#0c4a6e' }}>手動輸入</div>
             </div>
           </button>
           <button style={{ display:'flex', alignItems:'center', gap:14, padding:'16px 18px', borderRadius:14, border:'2px solid #c4b5fd', background:'#faf5ff', cursor:'pointer', width:'100%', textAlign:'left' }} onClick={onImage}>
-            <span style={{ fontSize:28 }}>📷</span>
+            <i className="fi fi-rr-camera" style={{ fontSize:28, color:'#5b21b6', display:'flex', alignItems:'center' }} />
             <div>
               <div style={{ fontWeight:700, fontSize:15, color:'#5b21b6' }}>影像辨識</div>
             </div>
           </button>
           <button style={{ display:'flex', alignItems:'center', gap:14, padding:'16px 18px', borderRadius:14, border:'2px solid #86efac', background:'#f0fdf4', cursor:'pointer', width:'100%', textAlign:'left' }} onClick={onBarcode}>
-            <span style={{ fontSize:28 }}>📊</span>
+            <i className="fi fi-rr-barcode-read" style={{ fontSize:28, color:'#166534', display:'flex', alignItems:'center' }} />
             <div>
               <div style={{ fontWeight:700, fontSize:15, color:'#166534' }}>條碼掃描</div>
             </div>

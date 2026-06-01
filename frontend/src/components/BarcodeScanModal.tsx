@@ -129,7 +129,7 @@ export default function BarcodeScanModal({ onClose, onFill, deviceMode }: Props)
   return (
     <div style={overlay} onClick={onClose}>
       <div style={{ ...modalStyle, maxWidth: 480, maxHeight: '92vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
-        <h2 style={modalTitle}>📊 條碼掃描</h2>
+        <h2 style={modalTitle}>條碼掃描</h2>
 
         {status === 'scanning' && (
           <>

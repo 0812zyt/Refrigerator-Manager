@@ -295,18 +295,18 @@ export default function ImageRecognizeModal({ onClose, onFill, deviceMode, onDir
   return (
     <div style={overlay} onClick={handleClose}>
       <div style={{ ...modalStyle, maxWidth:520, maxHeight:'92vh', overflowY:'auto' }} onClick={e => e.stopPropagation()}>
-        <h2 style={modalTitle}>📷 影像辨識食材</h2>
+        <h2 style={modalTitle}>影像辨識食材</h2>
 
         {mode === 'choose' && (
           <>
             <div style={{ display:'flex', gap:12 }}>
               {/* 主方案：LINE 用 capture input，一般用 getUserMedia */}
               <button style={srcBtn('#7c3aed', '#faf5ff')} onClick={() => isLine ? captureRef.current?.click() : startCamera()}>
-                <span style={{ fontSize:28 }}>📸</span>
+                <i className="fi fi-rr-camera" style={{ fontSize:28, color:'#7c3aed', display:'flex', alignItems:'center' }} />
                 <div style={{ fontWeight:700 }}>開啟相機拍照</div>
               </button>
               <button style={srcBtn('#0ea5e9', '#f0f9ff')} onClick={() => fileRef.current?.click()}>
-                <span style={{ fontSize:28 }}>🖼️</span>
+                <i className="fi fi-rr-picture" style={{ fontSize:28, color:'#0ea5e9', display:'flex', alignItems:'center' }} />
                 <div style={{ fontWeight:700 }}>上傳照片</div>
               </button>
             </div>

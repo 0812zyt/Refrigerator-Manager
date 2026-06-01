@@ -572,7 +572,6 @@ export default function DashboardPage({ user, onLogout }: Props) {
   const [activeCategory, setActiveCategory] = useState('全部');
   const [searchTerm, setSearchTerm] = useState('');
   const [modal, setModal]           = useState<ModalState>(null);
-  const [imageInputMode, setImageInputMode] = useState<'camera' | 'gallery' | null>(null);
   const [editItem, setEditItem]     = useState<EnrichedItem | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
   const [prefill, setPrefill]       = useState<{name?:string;category?:string}|null>(null);
@@ -1197,9 +1196,9 @@ export default function DashboardPage({ user, onLogout }: Props) {
       </div>
 
       {/* Modals */}
-      {modal === 'choice' && <AddChoiceModal onManual={() => { setPrefill(null); setModal('manual'); }} onCamera={() => { setImageInputMode('camera'); setModal('image'); }} onGallery={() => { setImageInputMode('gallery'); setModal('image'); }} onBarcode={() => setModal('barcode')} onClose={() => setModal(null)} />}
+      {modal === 'choice' && <AddChoiceModal onManual={() => { setPrefill(null); setModal('manual'); }} onImage={() => setModal('image')} onBarcode={() => setModal('barcode')} onClose={() => setModal(null)} />}
       {modal === 'barcode' && <BarcodeScanModal onClose={() => setModal(null)} onFill={d => { setPrefill(d); setModal('manual'); }} />}
-      {modal === 'image' && <ImageRecognizeModal inputMode={imageInputMode || undefined} onClose={() => { setModal(null); setImageInputMode(null); }} onFill={d => { setPrefill(d); setModal('manual'); }} />}
+      {modal === 'image' && <ImageRecognizeModal onClose={() => setModal(null)} onFill={d => { setPrefill(d); setModal('manual'); }} />}
       {modal === 'manual' && <AddItemModal userId={user.user_id} prefill={prefill} cachedCategories={categories} cachedIngredients={allIngredients} onClose={() => { setModal(null); setPrefill(null); }} onAdded={loadData} />}
       {modal === 'edit' && editItem && <EditItemModal item={editItem} cachedCategories={categories} cachedIngredients={allIngredients} onClose={() => { setModal(null); setEditItem(null); }} onUpdated={loadData} />}
 

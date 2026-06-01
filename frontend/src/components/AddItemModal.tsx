@@ -2,12 +2,36 @@ import { useEffect, useRef, useState } from 'react';
 import { getCategories, getIngredients, createInventory, createIngredient } from '../api/client';
 import type { Category, Ingredient } from '../api/types';
 import { overlay, modalStyle, modalTitle, cancelBtn, saveBtn, fieldStyle, labelStyle, inputStyle } from '../pages/DashboardPage';
+import { inferCategory } from '../utils/categoryInfer';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 
+const GROQ_KEY = import.meta.env.VITE_GROQ_API_KEY as string;
+
+async function inferExpireDays(name: string): Promise<number | null> {
+  if (!GROQ_KEY || !name) return null;
+  try {
+    const prompt = `食材「${name}」一般冷藏保存可放幾天？只回傳一個正整數（不要任何文字、單位或說明）。`;
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROQ_KEY}` },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.1,
+        max_tokens: 8,
+      }),
+    });
+    const data = await res.json();
+    const text: string = data.choices?.[0]?.message?.content?.trim() ?? '';
+    const n = parseInt(text.match(/\d+/)?.[0] ?? '', 10);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  } catch { return null; }
+}
+
 interface Props {
   userId: string;
-  prefill?: { name?: string; category?: string } | null;
+  prefill?: { name?: string; category?: string; photo?: string } | null;
   cachedCategories?: Category[];
   cachedIngredients?: Ingredient[];
   onClose: () => void;
@@ -95,11 +119,11 @@ export default function AddItemModal({ userId, prefill, cachedCategories, cached
   const [allIngredients, setAllIngredients] = useState<Ingredient[]>(cachedIngredients ?? []);
   const [ingredients, setIngredients] = useState<Ingredient[]>(cachedIngredients ?? []);
   const today = new Date().toISOString().slice(0, 10);
-  const [form, setForm] = useState({ name: prefill?.name ?? '', category: prefill?.category ?? 'Others', quantity: '1', expiry: '', purchaseDate: today });
+  const [form, setForm] = useState({ name: prefill?.name ?? '', category: prefill?.category ?? '', quantity: '1', expiry: '', purchaseDate: today });
   const [selectedIng, setSelectedIng] = useState<Ingredient | null>(null);
   const [saving, setSaving]   = useState(false);
   const [error, setError]     = useState('');
-  const [productPhoto, setProductPhoto] = useState<string | null>(null);
+  const [productPhoto, setProductPhoto] = useState<string | null>(prefill?.photo ?? null);
   const [expirePhoto, setExpirePhoto]   = useState<string | null>(null);
   const [picker, setPicker] = useState<null | 'product' | 'expire'>(null);
   const skipClearRef = useRef(false);
@@ -149,22 +173,37 @@ export default function AddItemModal({ userId, prefill, cachedCategories, cached
 
   const handleSave = async () => {
     if (!form.name.trim()) { setError('請輸入食材名稱'); return; }
-    if (!form.expiry) { setError('請選擇到期日'); return; }
     setError(''); setSaving(true);
     try {
       let ing = selectedIng
         ?? allIngredients.find(i => i.name.toLowerCase() === form.name.trim().toLowerCase())
         ?? allIngredients.find(i => i.name.toLowerCase().includes(form.name.trim().toLowerCase()))
         ?? null;
+      const needAiDays = !form.expiry && !ing?.default_expire_days;
+      const aiDaysPromise = needAiDays
+        ? inferExpireDays(ing?.name ?? form.name.trim())
+        : Promise.resolve(null);
       if (!ing) {
-        const catEntry = categories.find(c => c.category_name === form.category)
-          ?? categories.find(c => c.category_name === 'Others' || c.category_name === '其他');
-        ing = await createIngredient({ name: form.name.trim(), category_id: catEntry?.category_id });
+        let catEntry = form.category
+          ? categories.find(c => c.category_name === form.category)
+          : null;
+        if (!catEntry) {
+          const inferred = await inferCategory(form.name.trim(), categories);
+          if (inferred) catEntry = inferred;
+        }
+        catEntry = catEntry ?? categories.find(c => c.category_name === 'Others' || c.category_name === '其他');
+        const aiDays = await aiDaysPromise;
+        ing = await createIngredient({
+          name: form.name.trim(),
+          category_id: catEntry?.category_id,
+          ...(aiDays ? { default_expire_days: aiDays } : {}),
+        });
       }
-      const expireDate = form.expiry
-        || (ing.default_expire_days
-          ? new Date(Date.now() + ing.default_expire_days * 86400000).toISOString().slice(0, 10)
-          : new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10));
+      let expireDate = form.expiry;
+      if (!expireDate) {
+        const days = ing.default_expire_days ?? (await aiDaysPromise) ?? 7;
+        expireDate = new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
+      }
       const created = await createInventory({
         user_id: userId,
         ingredient_id: ing.ingredient_id,
@@ -238,17 +277,11 @@ export default function AddItemModal({ userId, prefill, cachedCategories, cached
             </div>
           )}
 
-          {selectedIng && (
-            <div style={{ background:'#f0f9ff', borderRadius:10, padding:'8px 14px', marginBottom:14, fontSize:14, color:'#0369a1', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-              <span>✅ 已選：<strong>{selectedIng.name}</strong></span>
-              <button onClick={() => { setSelectedIng(null); setForm(f => ({ ...f, name:'' })); }} style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:16 }}>✕</button>
-            </div>
-          )}
 
           <div style={fieldStyle}>
             <label style={labelStyle}>分類</label>
-            <select style={{ ...inputStyle, textAlign: 'center' }} value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
-              <option value="Others">Others</option>
+            <select style={{ ...inputStyle, textAlign: 'center', color: form.category ? undefined : '#94a3b8' }} value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
+              <option value="">未選擇將自動分類</option>
               {categories.map(c => <option key={c.category_id} value={c.category_name}>{CATEGORY_ICONS[c.category_name] ?? '📦'} {c.category_name}</option>)}
             </select>
           </div>
@@ -276,12 +309,12 @@ export default function AddItemModal({ userId, prefill, cachedCategories, cached
           </div>
 
           <div style={fieldStyle}>
-            <label style={labelStyle}>到期日 *</label>
+            <label style={labelStyle}>到期日</label>
             <DatePicker
               selected={form.expiry ? new Date(form.expiry) : null}
               onChange={(date: Date | null) => setForm({ ...form, expiry: date ? date.toISOString().slice(0, 10) : '' })}
               dateFormat="yyyy-MM-dd"
-              placeholderText="-"
+              placeholderText="未填寫將自動判斷"
               customInput={<input style={{ ...inputStyle, textAlign: 'center' }} />}
             />
           </div>

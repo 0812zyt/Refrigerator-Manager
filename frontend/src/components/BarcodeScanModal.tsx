@@ -49,13 +49,18 @@ export default function BarcodeScanModal({ onClose, onFill, deviceMode }: Props)
         const caps = (track.getCapabilities?.() ?? {}) as Record<string, unknown>;
         const advanced: Record<string, unknown>[] = [];
         const focusModes = (caps.focusMode as string[] | undefined) ?? [];
+        // 把對焦點鎖在畫面正中央（掃碼框位置），避免相機自己挑遠處當主體
+        if ('pointsOfInterest' in caps) advanced.push({ pointsOfInterest: [{ x: 0.5, y: 0.5 }] });
+        // 連續自動對焦
         if (focusModes.includes('continuous')) advanced.push({ focusMode: 'continuous' });
         if ('zoom' in caps) {
           const z = caps.zoom as { min: number; max: number };
-          advanced.push({ zoom: Math.min(z.max, Math.max(z.min, 1.5)) });
+          // 中度放大：讓使用者拉遠 20-30cm 也能讓條碼填滿掃描框（手機鏡頭最近對焦約 10cm）
+          const target = Math.min(z.max, Math.max(z.min, (z.min + z.max) / 2));
+          advanced.push({ zoom: target });
         }
         if (advanced.length > 0) {
-          await track.applyConstraints({ advanced } as MediaTrackConstraints);
+          await track.applyConstraints({ advanced } as unknown as MediaTrackConstraints);
         }
       } catch (e) {
         console.warn('[barcode] applyConstraints failed', e);
@@ -98,6 +103,7 @@ export default function BarcodeScanModal({ onClose, onFill, deviceMode }: Props)
     if (!name) return;
     onFill({ name });
   };
+
 
   const wrapStyle: React.CSSProperties = deviceMode
     ? { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 1000, background: '#000', display: 'flex', flexDirection: 'column' }

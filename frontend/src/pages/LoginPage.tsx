@@ -11,6 +11,7 @@ export default function LoginPage({ onLogin }: Props) {
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError]       = useState('');
   const [loading, setLoading]   = useState(false);
 
@@ -100,9 +101,16 @@ export default function LoginPage({ onLogin }: Props) {
           </Field>
 
           <Field label="密碼">
-            <Input type="password" placeholder={mode === 'signup' ? '至少 6 個字元' : '輸入密碼'} value={password}
-              onChange={e => setPassword(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && submit()} />
+            <div style={{ position: 'relative' }}>
+              <Input type={showPassword ? 'text' : 'password'} placeholder={mode === 'signup' ? '至少 6 個字元' : '輸入密碼'} value={password}
+                onChange={e => setPassword(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && submit()}
+                style={{ paddingRight: 42 }} />
+              <button type="button" onClick={() => setShowPassword(s => !s)} aria-label={showPassword ? '隱藏密碼' : '顯示密碼'}
+                style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 0 }}>
+                <i className={`fi ${showPassword ? 'fi-rr-eye-crossed' : 'fi-rr-eye'}`} style={{ fontSize: 16, display: 'flex' }} />
+              </button>
+            </div>
           </Field>
 
           {error && <p style={{ color: '#f87171', fontSize: 13, textAlign: 'center', marginBottom: 12 }}>{error}</p>}

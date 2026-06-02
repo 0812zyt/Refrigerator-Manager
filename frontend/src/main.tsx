@@ -19,14 +19,13 @@ const recover = (reason: string) => {
   }
   console.warn('[boot] 偵測到啟動失敗，清除快取重整', reason);
   try {
-    // 保留 sessionStorage 的 BOOT_FLAG，其他全部清掉
+    // 只清自己的快取（fridge_*、theme），保留 Supabase 登入 token（sb-*）讓使用者不需重登
     const keys: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
-      if (k) keys.push(k);
+      if (k && !k.startsWith('sb-') && !k.includes('supabase')) keys.push(k);
     }
     keys.forEach(k => localStorage.removeItem(k));
-    // Supabase 自己的 token 也在 localStorage 裡，清掉等於登出
   } catch {}
   location.reload();
 };

@@ -31,16 +31,8 @@ function AppInner() {
         setChecking(false);
       })
       .catch((err) => {
-        console.warn('[auth] getSession failed, clearing Supabase token', err);
-        // Supabase session 損壞：清掉它的 storage key 然後當成未登入處理
-        try {
-          const keys: string[] = [];
-          for (let i = 0; i < localStorage.length; i++) {
-            const k = localStorage.key(i);
-            if (k && (k.startsWith('sb-') || k.includes('supabase'))) keys.push(k);
-          }
-          keys.forEach(k => localStorage.removeItem(k));
-        } catch {}
+        console.warn('[auth] getSession failed', err);
+        // 不清 Supabase token，避免使用者被登出；等下次 onAuthStateChange 自動恢復
         setChecking(false);
       });
 

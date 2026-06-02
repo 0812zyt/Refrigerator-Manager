@@ -45,11 +45,7 @@ export default function BarcodeScanModal({ onClose, onFill, deviceMode }: Props)
         const focusModes = (caps.focusMode as string[] | undefined) ?? [];
         if ('pointsOfInterest' in caps) advanced.push({ pointsOfInterest: [{ x: 0.5, y: 0.5 }] });
         if (focusModes.includes('continuous')) advanced.push({ focusMode: 'continuous' });
-        if ('zoom' in caps) {
-          const z = caps.zoom as { min: number; max: number };
-          const target = Math.min(z.max, Math.max(z.min, (z.min + z.max) / 2));
-          advanced.push({ zoom: target });
-        }
+        // 不主動放大；保留原本鏡頭視野，避免在 max zoom 很大的手機上突然拉到 4-5x
         if (advanced.length > 0) {
           await track.applyConstraints({ advanced } as unknown as MediaTrackConstraints);
         }

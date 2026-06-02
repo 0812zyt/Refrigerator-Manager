@@ -205,7 +205,12 @@ export default function BarcodeScanModal({ onClose, onFill, deviceMode }: Props)
                 <div style={{ position: 'relative', borderRadius: 14, overflow: 'hidden', background: '#000', lineHeight: 0, marginBottom: 12 }}>
                   <video ref={videoRef} autoPlay playsInline style={{ width: '100%', borderRadius: 14 }} />
                   {/* Scan frame */}
-                  <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: '70%', height: 80, border: '2px solid rgba(255,255,255,0.6)', borderRadius: 6 }} />
+                  <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: '70%', height: 80, border: '2px solid rgba(255,255,255,0.6)', borderRadius: 6 }}>
+                    <div style={{ position: 'absolute', top: -1, left: -1, width: 22, height: 22, borderTop: '3px solid #6366f1', borderLeft: '3px solid #6366f1', borderRadius: '4px 0 0 0' }} />
+                    <div style={{ position: 'absolute', top: -1, right: -1, width: 22, height: 22, borderTop: '3px solid #6366f1', borderRight: '3px solid #6366f1', borderRadius: '0 4px 0 0' }} />
+                    <div style={{ position: 'absolute', bottom: -1, left: -1, width: 22, height: 22, borderBottom: '3px solid #6366f1', borderLeft: '3px solid #6366f1', borderRadius: '0 0 0 4px' }} />
+                    <div style={{ position: 'absolute', bottom: -1, right: -1, width: 22, height: 22, borderBottom: '3px solid #6366f1', borderRight: '3px solid #6366f1', borderRadius: '0 0 4px 0' }} />
+                  </div>
                 </div>
                 {camError && <div style={{ background: '#fff1f2', color: '#dc2626', borderRadius: 10, padding: '10px 14px', fontSize: 13, marginBottom: 8 }}>{camError}</div>}
               </>

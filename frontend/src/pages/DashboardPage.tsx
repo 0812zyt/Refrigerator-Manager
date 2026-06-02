@@ -9,6 +9,7 @@ import BarcodeScanModal from '../components/BarcodeScanModal';
 import AddItemModal from '../components/AddItemModal';
 import ImageRecognizeModal from '../components/ImageRecognizeModal';
 import EditItemModal from '../components/EditItemModal';
+import CategoryIcon from '../components/CategoryIcon';
 
 interface Props { user: User; onLogout: () => void; }
 
@@ -1178,7 +1179,7 @@ export default function DashboardPage({ user, onLogout }: Props) {
                 color: active ? '#fff' : '#6366f1',
                 boxShadow: active ? '0 4px 12px rgba(99,102,241,0.3)' : '0 1px 4px rgba(0,0,0,0.08)',
               }}>
-                {cat !== '全部' && <span style={{ fontSize:16 }}>{CATEGORY_ICONS[cat] ?? '📦'}</span>}{CAT_ZH[cat] ?? cat}
+                {cat !== '全部' && <CategoryIcon name={cat} size={16} />}{CAT_ZH[cat] ?? cat}
               </button>
             );
           })}
@@ -1404,7 +1405,7 @@ function ItemCard({ item, viewMode, onEdit, onQuantityChange, selectionMode, isS
     ? <span style={{ fontSize: viewMode === 'grid' ? 90 : 40 }}>{customIcon}</span>
     : photo
       ? <img src={photo} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
-      : <span style={{ fontSize: viewMode === 'grid' ? 90 : 40 }}>{CATEGORY_ICONS[item.categoryName ?? ''] ?? '📦'}</span>;
+      : <CategoryIcon name={item.categoryName ?? ''} size={viewMode === 'grid' ? 90 : 40} />;
 
   const selectionCircle = (size: number) => (
     <div style={{ width:size, height:size, borderRadius:'50%', flexShrink:0,

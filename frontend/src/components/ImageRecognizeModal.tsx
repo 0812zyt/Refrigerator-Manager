@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { overlay, modalStyle, modalTitle, cancelBtn, saveBtn } from '../pages/DashboardPage';
 import { compressImage } from '../utils/imageCompress';
+import CategoryIcon from './CategoryIcon';
 
 interface RecognizeResult {
   name: string;
@@ -15,11 +16,6 @@ interface Props {
   deviceMode?: boolean;
   onDirectAdd?: (name: string, category?: string, photo?: string) => Promise<void>;
 }
-
-const CATEGORY_ICONS: Record<string, string> = {
-  蔬菜:'🥬', 水果:'🍎', 肉類:'🥩', 乳製品:'🧀', 飲料:'🥤',
-  調味料:'🧂', 冷凍食品:'🧊', 其他:'📦',
-};
 
 export default function ImageRecognizeModal({ onClose, onFill, deviceMode, onDirectAdd }: Props) {
   const [mode, setMode]         = useState<'choose' | 'camera' | 'preview'>(deviceMode ? 'camera' : 'choose');
@@ -387,7 +383,7 @@ export default function ImageRecognizeModal({ onClose, onFill, deviceMode, onDir
                     {results.map((item, i) => (
                       <div key={i} style={{ background:'#ecfdf5', borderRadius:12, padding:'14px', marginBottom:12, border:'1.5px solid #a7f3d0', boxShadow: '0 2px 8px rgba(16,185,129,0.05)' }}>
                         <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                          <span style={{ fontSize:28 }}>{CATEGORY_ICONS[item.category ?? ''] ?? '🍎'}</span>
+                          <CategoryIcon name={item.category ?? ''} size={28} fallback="🍎" />
                           <div style={{ flex:1 }}>
                             <div style={{ fontWeight:700, color:'#065f46', fontSize: 16 }}>{item.name}</div>
                           </div>
@@ -407,7 +403,7 @@ export default function ImageRecognizeModal({ onClose, onFill, deviceMode, onDir
                     <p style={{ fontWeight:700, color:'#059669', fontSize:14, marginBottom:10 }}>辨識結果</p>
                     <div style={{ background:'#ecfdf5', borderRadius:12, padding:'14px', marginBottom:12, border:'1.5px solid #a7f3d0', boxShadow:'0 2px 8px rgba(16,185,129,0.05)' }}>
                       <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                        <span style={{ fontSize:28 }}>{CATEGORY_ICONS[closestClass] ?? '🍎'}</span>
+                        <CategoryIcon name={closestClass} size={28} fallback="🍎" />
                         <div style={{ flex:1 }}>
                           <div style={{ fontWeight:700, color:'#065f46', fontSize:16 }}>{closestClass}</div>
                         </div>

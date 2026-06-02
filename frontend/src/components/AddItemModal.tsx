@@ -4,6 +4,7 @@ import type { Category, Ingredient } from '../api/types';
 import { overlay, modalStyle, modalTitle, cancelBtn, saveBtn, fieldStyle, labelStyle, inputStyle } from '../pages/DashboardPage';
 import { inferCategory } from '../utils/categoryInfer';
 import { compressImage } from '../utils/imageCompress';
+import CategoryIcon from './CategoryIcon';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 
@@ -271,7 +272,7 @@ export default function AddItemModal({ userId, prefill, cachedCategories, cached
                 return (
                   <button key={ing.ingredient_id} onClick={() => selectIngredient(ing)}
                     style={{ display:'flex', alignItems:'center', gap:8, width:'100%', padding:'8px 14px', background:'none', border:'none', cursor:'pointer', textAlign:'left', fontSize:14, color:'#374151' }}>
-                    <span>{CATEGORY_ICONS[catName] ?? '📦'}</span>
+                    <CategoryIcon name={catName} size={18} />
                     <span>{ing.name}</span>
                     {ing.default_expire_days && <span style={{ marginLeft:'auto', fontSize:12, color:'#94a3b8' }}>預設 {ing.default_expire_days} 天</span>}
                   </button>

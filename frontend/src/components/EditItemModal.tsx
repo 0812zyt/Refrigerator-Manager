@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { updateInventory, getCategories, getIngredients, createIngredient, updateIngredient } from '../api/client';
 import type { InventoryItem, Category, Ingredient } from '../api/types';
-import { overlay, modalStyle, modalTitle, cancelBtn, saveBtn, fieldStyle, labelStyle, inputStyle, CAT_ZH, CATEGORY_ICONS } from '../pages/DashboardPage';
+import { overlay, modalStyle, modalTitle, cancelBtn, saveBtn, fieldStyle, labelStyle, inputStyle, CAT_ZH } from '../pages/DashboardPage';
+import CategoryIcon from './CategoryIcon';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 
@@ -184,8 +185,6 @@ export default function EditItemModal({ item, cachedCategories, cachedIngredient
     } finally { setSaving(false); }
   };
 
-  const defaultEmoji = CATEGORY_ICONS[selectedCategory] ?? '📦';
-
   const PhotoPanel = () => (
     <div style={panelStyle} onClick={() => setShowPicker(true)}>
       {iconEmoji ? (
@@ -202,7 +201,7 @@ export default function EditItemModal({ item, cachedCategories, cachedIngredient
         </>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontSize: 56 }}>{defaultEmoji}</span>
+          <CategoryIcon name={selectedCategory} size={56} />
           <span style={{ fontSize: 11, color: '#94a3b8' }}>點擊更換圖示</span>
         </div>
       )}

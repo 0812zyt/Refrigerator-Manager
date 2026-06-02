@@ -152,7 +152,6 @@ export default function BarcodeScanModal({ onClose, onFill, deviceMode }: Props)
               <div style={{ position: 'absolute', top: -1, right: -1, width: 24, height: 24, borderTop: '3px solid #6366f1', borderRight: '3px solid #6366f1', borderRadius: '0 4px 0 0' }} />
               <div style={{ position: 'absolute', bottom: -1, left: -1, width: 24, height: 24, borderBottom: '3px solid #6366f1', borderLeft: '3px solid #6366f1', borderRadius: '0 0 0 4px' }} />
               <div style={{ position: 'absolute', bottom: -1, right: -1, width: 24, height: 24, borderBottom: '3px solid #6366f1', borderRight: '3px solid #6366f1', borderRadius: '0 0 4px 0' }} />
-              <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, height: 2, background: 'rgba(99,102,241,0.7)', transform: 'translateY(-50%)' }} />
             </div>
             <div style={{ position: 'absolute', bottom: 80, left: 0, right: 0, textAlign: 'center', color: 'rgba(255,255,255,0.8)', fontSize: 13 }}>對準條碼掃描</div>
             <button onClick={onClose} style={{ position: 'absolute', top: 12, right: 12, width: 36, height: 36, borderRadius: '50%', background: 'rgba(0,0,0,0.55)', color: '#fff', border: '1.5px solid rgba(255,255,255,0.3)', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
@@ -206,9 +205,7 @@ export default function BarcodeScanModal({ onClose, onFill, deviceMode }: Props)
                 <div style={{ position: 'relative', borderRadius: 14, overflow: 'hidden', background: '#000', lineHeight: 0, marginBottom: 12 }}>
                   <video ref={videoRef} autoPlay playsInline style={{ width: '100%', borderRadius: 14 }} />
                   {/* Scan frame */}
-                  <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: '70%', height: 80, border: '2px solid rgba(255,255,255,0.6)', borderRadius: 6 }}>
-                    <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, height: 2, background: 'rgba(99,102,241,0.8)', transform: 'translateY(-50%)' }} />
-                  </div>
+                  <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: '70%', height: 80, border: '2px solid rgba(255,255,255,0.6)', borderRadius: 6 }} />
                 </div>
                 {camError && <div style={{ background: '#fff1f2', color: '#dc2626', borderRadius: 10, padding: '10px 14px', fontSize: 13, marginBottom: 8 }}>{camError}</div>}
               </>

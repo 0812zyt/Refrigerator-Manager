@@ -1,4 +1,4 @@
-import { CATEGORY_ICONS } from '../pages/DashboardPage';
+import { CATEGORY_ICONS } from '../utils/categoryIcons';
 
 interface Props {
   name: string;

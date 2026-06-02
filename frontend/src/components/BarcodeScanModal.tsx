@@ -37,11 +37,35 @@ export default function BarcodeScanModal({ onClose, onFill, deviceMode }: Props)
     if (isLine) return;
     const hints = new Map();
     hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.EAN_13, BarcodeFormat.EAN_8, BarcodeFormat.UPC_A]);
-    const reader = new BrowserMultiFormatReader(hints, 300);
+    const reader = new BrowserMultiFormatReader(hints, 200);
     readerRef.current = reader;
 
+    const applyFocus = async () => {
+      const stream = videoRef.current?.srcObject as MediaStream | null;
+      if (!stream) return;
+      const track = stream.getVideoTracks()[0];
+      if (!track) return;
+      try {
+        const caps = (track.getCapabilities?.() ?? {}) as Record<string, unknown>;
+        const advanced: Record<string, unknown>[] = [];
+        const focusModes = (caps.focusMode as string[] | undefined) ?? [];
+        if (focusModes.includes('continuous')) advanced.push({ focusMode: 'continuous' });
+        if ('zoom' in caps) {
+          const z = caps.zoom as { min: number; max: number };
+          advanced.push({ zoom: Math.min(z.max, Math.max(z.min, 1.5)) });
+        }
+        if (advanced.length > 0) {
+          await track.applyConstraints({ advanced } as MediaTrackConstraints);
+        }
+      } catch (e) {
+        console.warn('[barcode] applyConstraints failed', e);
+      }
+    };
+    const video = videoRef.current;
+    if (video) video.addEventListener('loadedmetadata', applyFocus);
+
     reader.decodeFromConstraints(
-      { video: { facingMode: { ideal: 'environment' } } },
+      { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } } },
       videoRef.current!,
       async (result, err) => {
         if (result) {
@@ -63,7 +87,10 @@ export default function BarcodeScanModal({ onClose, onFill, deviceMode }: Props)
       }
     ).catch(() => setCamError('無法存取相機，請確認已授予相機權限。'));
 
-    return () => { reader.reset(); };
+    return () => {
+      if (video) video.removeEventListener('loadedmetadata', applyFocus);
+      reader.reset();
+    };
   }, [isLine]);
 
   const handleConfirm = () => {

@@ -7,10 +7,7 @@ interface Props {
 }
 
 // 客製化圖片：某些分類用 SVG/PNG 而非 emoji
-const IMAGE_OVERRIDES: Record<string, string> = {
-  乳製品: '/icons/cheese.png',
-  Dairy:  '/icons/cheese.png',
-};
+const IMAGE_OVERRIDES: Record<string, string> = {};
 
 export default function CategoryIcon({ name, size = 24, fallback = '📦' }: Props) {
   const img = IMAGE_OVERRIDES[name];

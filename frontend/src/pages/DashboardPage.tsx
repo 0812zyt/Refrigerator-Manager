@@ -700,9 +700,10 @@ export default function DashboardPage({ user, onLogout }: Props) {
     setLoading(true); setLoadError(false);
     try {
       await Promise.race([wakeSystem(), new Promise(r => setTimeout(r, 8000))]).catch(() => {});
+      // 後端可能在 Render 上冷啟動，給 60 秒緩衝
       const [inv, cats, ings] = await Promise.race([
         Promise.all([getInventory(user.user_id), getCategories(), getIngredients()]),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 20000)),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 60000)),
       ]);
       setCategories(cats);
       setAllIngredients(ings);
@@ -1198,8 +1199,8 @@ export default function DashboardPage({ user, onLogout }: Props) {
         </div>
 
         {loading ? (
-          <div style={{ textAlign:'center', padding:'60px 0', color:'var(--text-3)' }}>
-            <div style={{ width:28, height:28, border:'3px solid var(--border)', borderTopColor:'var(--accent)', borderRadius:'50%', animation:'spin 0.7s linear infinite', margin:'0 auto 12px' }} />後端喚醒中，請稍候…
+          <div style={{ position:'fixed', inset:0, display:'flex', alignItems:'center', justifyContent:'center', pointerEvents:'none' }}>
+            <div style={{ width:36, height:36, border:'3px solid var(--border)', borderTopColor:'var(--accent)', borderRadius:'50%', animation:'spin 0.7s linear infinite' }} />
           </div>
         ) : loadError ? (
           <div style={{ textAlign:'center', padding:'60px 0', color:'var(--text-3)' }}>

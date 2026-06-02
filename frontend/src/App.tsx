@@ -20,15 +20,29 @@ function AppInner() {
   };
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        const u = session.user;
-        const username = u.user_metadata?.username ?? u.email ?? 'user';
-        ensureBackendUser(u.id, username);
-        setUser({ user_id: u.id, username });
-      }
-      setChecking(false);
-    });
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => {
+        if (session?.user) {
+          const u = session.user;
+          const username = u.user_metadata?.username ?? u.email ?? 'user';
+          ensureBackendUser(u.id, username);
+          setUser({ user_id: u.id, username });
+        }
+        setChecking(false);
+      })
+      .catch((err) => {
+        console.warn('[auth] getSession failed, clearing Supabase token', err);
+        // Supabase session 損壞：清掉它的 storage key 然後當成未登入處理
+        try {
+          const keys: string[] = [];
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && (k.startsWith('sb-') || k.includes('supabase'))) keys.push(k);
+          }
+          keys.forEach(k => localStorage.removeItem(k));
+        } catch {}
+        setChecking(false);
+      });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {

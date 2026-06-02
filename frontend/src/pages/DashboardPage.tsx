@@ -739,6 +739,32 @@ export default function DashboardPage({ user, onLogout }: Props) {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  // 回到分頁就刷新：太久沒進、其他分頁改過資料、其他瀏覽器改過後台都會自動同步
+  useEffect(() => {
+    let lastRefresh = Date.now();
+    const refreshIfStale = (minMs = 30 * 1000) => {
+      if (Date.now() - lastRefresh < minMs) return; // 30 秒內進來不重複拉
+      lastRefresh = Date.now();
+      loadData();
+    };
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') refreshIfStale();
+    };
+    const onFocus = () => refreshIfStale();
+    const onStorage = (e: StorageEvent) => {
+      // 其他分頁改了購物車或快取，立刻同步
+      if (e.key && e.key.startsWith('fridge_')) refreshIfStale(0);
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onFocus);
+    window.addEventListener('storage', onStorage);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onFocus);
+      window.removeEventListener('storage', onStorage);
+    };
+  }, [loadData]);
+
   useEffect(() => {
     const id = setInterval(() => { wakeSystem().catch(() => {}); }, 10 * 60 * 1000);
     return () => clearInterval(id);

@@ -35,27 +35,18 @@ export default function BarcodeScanModal({ onClose, onFill, deviceMode }: Props)
 
   useEffect(() => {
     if (isLine) return;
-    const hints = new Map();
-    hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.EAN_13, BarcodeFormat.EAN_8, BarcodeFormat.UPC_A]);
-    const reader = new BrowserMultiFormatReader(hints, 200);
-    readerRef.current = reader;
+    let cancelled = false;
+    let ownStream: MediaStream | null = null;
 
-    const applyFocus = async () => {
-      const stream = videoRef.current?.srcObject as MediaStream | null;
-      if (!stream) return;
-      const track = stream.getVideoTracks()[0];
-      if (!track) return;
+    const applyFocus = async (track: MediaStreamTrack) => {
       try {
         const caps = (track.getCapabilities?.() ?? {}) as Record<string, unknown>;
         const advanced: Record<string, unknown>[] = [];
         const focusModes = (caps.focusMode as string[] | undefined) ?? [];
-        // 把對焦點鎖在畫面正中央（掃碼框位置），避免相機自己挑遠處當主體
         if ('pointsOfInterest' in caps) advanced.push({ pointsOfInterest: [{ x: 0.5, y: 0.5 }] });
-        // 連續自動對焦
         if (focusModes.includes('continuous')) advanced.push({ focusMode: 'continuous' });
         if ('zoom' in caps) {
           const z = caps.zoom as { min: number; max: number };
-          // 中度放大：讓使用者拉遠 20-30cm 也能讓條碼填滿掃描框（手機鏡頭最近對焦約 10cm）
           const target = Math.min(z.max, Math.max(z.min, (z.min + z.max) / 2));
           advanced.push({ zoom: target });
         }
@@ -66,35 +57,76 @@ export default function BarcodeScanModal({ onClose, onFill, deviceMode }: Props)
         console.warn('[barcode] applyConstraints failed', e);
       }
     };
-    const video = videoRef.current;
-    if (video) video.addEventListener('loadedmetadata', applyFocus);
 
-    reader.decodeFromConstraints(
-      { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } } },
-      videoRef.current!,
-      async (result, err) => {
-        if (result) {
-          const code = result.getText();
-          reader.reset();
-          setBarcode(code);
-          setStatus('found');
-          const name = await lookupBarcode(code);
-          if (name) {
-            setProductName(name);
-            setManualInput(name);
-          } else {
-            setStatus('notfound');
-          }
-        }
-        if (err && !(err.message?.includes('No MultiFormat'))) {
-          // ignore normal "no barcode yet" errors
+    const handleFound = async (code: string) => {
+      if (cancelled) return;
+      cancelled = true;
+      ownStream?.getTracks().forEach(t => t.stop());
+      readerRef.current?.reset();
+      setBarcode(code);
+      setStatus('found');
+      const name = await lookupBarcode(code);
+      if (name) { setProductName(name); setManualInput(name); }
+      else setStatus('notfound');
+    };
+
+    const start = async () => {
+      // 路徑 A：原生 BarcodeDetector（手機硬體加速，速度跟原生 App 一樣）
+      const NativeBD = (window as unknown as { BarcodeDetector?: new (opts: { formats: string[] }) => { detect: (src: ImageBitmapSource) => Promise<{ rawValue: string }[]> } }).BarcodeDetector;
+      if (NativeBD) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+          });
+          ownStream = stream;
+          if (cancelled) { stream.getTracks().forEach(t => t.stop()); return; }
+          const v = videoRef.current!;
+          v.srcObject = stream;
+          await v.play();
+          await applyFocus(stream.getVideoTracks()[0]);
+          const detector = new NativeBD({ formats: ['ean_13', 'ean_8', 'upc_a'] });
+          console.log('[barcode] using native BarcodeDetector');
+          const loop = async () => {
+            if (cancelled) return;
+            try {
+              const codes = await detector.detect(v);
+              if (codes.length > 0) { handleFound(codes[0].rawValue); return; }
+            } catch (e) { console.warn('[barcode] detect error', e); }
+            // 每 ~150ms 掃一次，已經夠快又不卡
+            setTimeout(() => requestAnimationFrame(loop), 150);
+          };
+          loop();
+          return;
+        } catch (e) {
+          console.warn('[barcode] native detector failed, fall back to ZXing', e);
         }
       }
-    ).catch(() => setCamError('無法存取相機，請確認已授予相機權限。'));
+
+      // 路徑 B：ZXing 退路（Firefox / 舊 iOS）
+      const hints = new Map();
+      hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.EAN_13, BarcodeFormat.EAN_8, BarcodeFormat.UPC_A]);
+      const reader = new BrowserMultiFormatReader(hints, 250);
+      readerRef.current = reader;
+      const onMeta = () => {
+        const stream = videoRef.current?.srcObject as MediaStream | null;
+        const track = stream?.getVideoTracks()[0];
+        if (track) applyFocus(track);
+      };
+      videoRef.current?.addEventListener('loadedmetadata', onMeta);
+      console.log('[barcode] using ZXing fallback');
+      reader.decodeFromConstraints(
+        { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } },
+        videoRef.current!,
+        async (result) => { if (result) handleFound(result.getText()); }
+      ).catch(() => setCamError('無法存取相機，請確認已授予相機權限。'));
+    };
+
+    start();
 
     return () => {
-      if (video) video.removeEventListener('loadedmetadata', applyFocus);
-      reader.reset();
+      cancelled = true;
+      ownStream?.getTracks().forEach(t => t.stop());
+      readerRef.current?.reset();
     };
   }, [isLine]);
 

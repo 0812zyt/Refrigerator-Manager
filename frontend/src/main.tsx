@@ -15,7 +15,6 @@ sessionStorage.setItem(BOOT_FLAG, String(bootAttempt + 1));
 const recover = (reason: string) => {
   if (bootAttempt >= 1) {
     console.error('[boot] 救援後仍失敗', reason);
-    document.body.innerHTML = '<div style="padding:32px;font-family:sans-serif;color:#1f2937"><h2>無法載入</h2><p>請重新開啟 App。若仍空白，請至瀏覽器設定清除網站資料。</p></div>';
     return;
   }
   console.warn('[boot] 偵測到啟動失敗，清除快取重整', reason);

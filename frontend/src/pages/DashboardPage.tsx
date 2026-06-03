@@ -10,7 +10,7 @@ import AddItemModal from '../components/AddItemModal';
 import ImageRecognizeModal from '../components/ImageRecognizeModal';
 import EditItemModal from '../components/EditItemModal';
 import CategoryIcon from '../components/CategoryIcon';
-import { CAT_ZH } from '../utils/categoryIcons';
+import { CAT_ZH, sortCategories } from '../utils/categoryIcons';
 
 interface Props { user: User; onLogout: () => void; }
 
@@ -1154,7 +1154,7 @@ export default function DashboardPage({ user, onLogout }: Props) {
 
         {/* ── Category filter ───────────────────────────────────────── */}
         <div className="fridge-cats" style={{ display:'flex', gap:10, overflowX:'auto', marginBottom:20, paddingBottom:4, scrollbarWidth:'none' }}>
-          {['全部', ...categories.map(c => c.category_name)].map(cat => {
+          {['全部', ...sortCategories(categories).map(c => c.category_name)].map(cat => {
             const active = activeCategory === cat;
             return (
               <button key={cat} onClick={() => setActiveCategory(cat)} className="fridge-cat-btn" style={{

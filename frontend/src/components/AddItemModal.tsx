@@ -48,11 +48,15 @@ const panelStyle: React.CSSProperties = {
   width: 180, height: 180, margin: '0 auto',
 };
 
-const FOOD_STICKERS = [
-  '🍎','🍊','🍋','🍇','🍓','🫐','🍑','🍒','🥭','🍍',
-  '🥦','🥕','🌽','🍆','🧅','🧄','🥔','🍅','🥑','🫛',
-  '🥩','🍗','🥚','🧀','🥛','🧈','🐟','🦐','🦑','🥓',
-  '🍚','🍞','🧇','🥞','🍜','🥗','🫙','🧃','🥤','🍵',
+const STICKER_GROUPS: { name: string; emojis: string[] }[] = [
+  { name: '蔬菜',   emojis: ['🥬','🥕','🥒','🍅','🧅','🥔','🌽','🥦','🫑','🥑','🍆','🧄','🫛'] },
+  { name: '水果',   emojis: ['🍎','🍌','🥝','🍑','🍈','🍇','🍓','🍊','🥭','🟣','🍍','🍋','🍒','🫐'] },
+  { name: '肉類',   emojis: ['🍗','🍖','🥩','🌭','🥓'] },
+  { name: '海鮮',   emojis: ['🐟','🦐','🦀','🦑','🐚'] },
+  { name: '雞蛋',   emojis: ['🥚','🍳','🍮'] },
+  { name: '乳製品', emojis: ['🧀','🥛','🍦','🥣','🧈'] },
+  { name: '主食',   emojis: ['🍚','🍞','🍜','🍝','🥟','🧇','🥞','🥗'] },
+  { name: '飲料',   emojis: ['🧃','☕','🧋','🍵','🥤','🫙'] },
 ];
 
 function emojiToDataUrl(emoji: string): string {
@@ -74,27 +78,52 @@ function PhotoPickerSheet({ onFile, onSticker, onClose }: {
   onClose: () => void;
 }) {
   const [showStickers, setShowStickers] = useState(false);
+  const [stickerGroup, setStickerGroup] = useState<string | null>(null);
   const rowStyle: React.CSSProperties = {
     display: 'block', width: '100%', padding: '16px', border: 'none', background: 'none',
     fontSize: 16, cursor: 'pointer', color: '#1e293b', borderBottom: '1px solid #f1f5f9',
     textAlign: 'center',
   };
-  if (showStickers) return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 400, display: 'flex', alignItems: 'flex-end' }} onClick={onClose}>
-      <div style={{ width: '100%', background: '#fff', borderRadius: '16px 16px 0 0', paddingBottom: 32 }} onClick={e => e.stopPropagation()}>
-        <div style={{ padding: '12px 16px 8px', textAlign: 'center', fontSize: 13, color: '#94a3b8' }}>選擇貼紙</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 4, padding: '8px 16px 16px' }}>
-          {FOOD_STICKERS.map(emoji => (
-            <button key={emoji} onClick={() => { onSticker(emojiToDataUrl(emoji)); onClose(); }}
-              style={{ fontSize: 28, background: 'none', border: 'none', cursor: 'pointer', padding: 4, borderRadius: 8, lineHeight: 1 }}>
-              {emoji}
-            </button>
-          ))}
+  const closeStickers = () => { setShowStickers(false); setStickerGroup(null); };
+  if (showStickers) {
+    const group = STICKER_GROUPS.find(g => g.name === stickerGroup);
+    return (
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 400, display: 'flex', alignItems: 'flex-end' }} onClick={onClose}>
+        <div style={{ width: '100%', background: '#fff', borderRadius: '16px 16px 0 0', paddingBottom: 32 }} onClick={e => e.stopPropagation()}>
+          <div style={{ display: 'flex', alignItems: 'center', padding: '10px 14px 8px' }}>
+            {group && (
+              <button onClick={() => setStickerGroup(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, padding: '4px 8px', color: '#64748b' }}>‹</button>
+            )}
+            <div style={{ flex: 1, textAlign: 'center', fontSize: 14, fontWeight: 700, color: '#334155' }}>
+              {group ? group.name : '選擇貼紙分類'}
+            </div>
+            {group && <div style={{ width: 30 }} />}
+          </div>
+          {!group ? (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, padding: '8px 16px 16px' }}>
+              {STICKER_GROUPS.map(g => (
+                <button key={g.name} onClick={() => setStickerGroup(g.name)}
+                  style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:4, padding:'12px 4px', background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:12, cursor:'pointer' }}>
+                  <span style={{ fontSize: 32, lineHeight: 1 }}>{g.emojis[0]}</span>
+                  <span style={{ fontSize: 12, color: '#475569', fontWeight: 600 }}>{g.name}</span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 6, padding: '8px 16px 16px' }}>
+              {group.emojis.map(emoji => (
+                <button key={emoji} onClick={() => { onSticker(emojiToDataUrl(emoji)); onClose(); }}
+                  style={{ fontSize: 32, background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 8, lineHeight: 1 }}>
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          )}
+          <button style={{ ...rowStyle, color: '#ef4444', borderBottom: 'none' }} onClick={closeStickers}>取消</button>
         </div>
-        <button style={{ ...rowStyle, color: '#ef4444', borderBottom: 'none' }} onClick={onClose}>取消</button>
       </div>
-    </div>
-  );
+    );
+  }
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 400, display: 'flex', alignItems: 'flex-end' }} onClick={onClose}>
       <div style={{ width: '100%', background: '#fff', borderRadius: '16px 16px 0 0', paddingBottom: 32 }} onClick={e => e.stopPropagation()}>

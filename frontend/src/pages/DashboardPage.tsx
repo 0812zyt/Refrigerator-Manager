@@ -10,7 +10,7 @@ import AddItemModal from '../components/AddItemModal';
 import ImageRecognizeModal from '../components/ImageRecognizeModal';
 import EditItemModal from '../components/EditItemModal';
 import CategoryIcon from '../components/CategoryIcon';
-import { CATEGORY_ICONS, CAT_ZH } from '../utils/categoryIcons';
+import { CAT_ZH } from '../utils/categoryIcons';
 
 interface Props { user: User; onLogout: () => void; }
 

@@ -664,15 +664,6 @@ function HelpPage({ onBack }: { onBack: () => void }) {
         </ul>
       </AccordionItem>
 
-      <AccordionItem icon="🌙" title="深色模式" isOpen={open === 'theme'} onToggle={() => toggle('theme')} image="/help/07-theme.png">
-        <p style={p}>可於設定頁切換：</p>
-        <ul style={ul}>
-          <li>☀️ 淺色模式</li>
-          <li>🌙 深色模式</li>
-        </ul>
-        <div style={tip}>系統會自動記住您的偏好設定。</div>
-      </AccordionItem>
-
     </div>
   );
 }

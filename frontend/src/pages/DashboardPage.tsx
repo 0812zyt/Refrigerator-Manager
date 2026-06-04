@@ -520,9 +520,12 @@ function NotifSettingsPage({ user, onBack }: { user: User; onBack: () => void })
 // ── Settings View ─────────────────────────────────────────────────
 function HelpPage({ onBack }: { onBack: () => void }) {
   const section: React.CSSProperties = { background:'var(--surface)', borderRadius:16, padding:'18px 18px', boxShadow:'var(--shadow)', marginBottom:14 };
-  const h: React.CSSProperties = { fontSize:15, fontWeight:800, color:'var(--text)', margin:'0 0 10px', display:'flex', alignItems:'center', gap:8 };
-  const p: React.CSSProperties = { fontSize:13, color:'var(--text-3)', lineHeight:1.7, margin:'0 0 8px' };
-  const li: React.CSSProperties = { fontSize:13, color:'var(--text)', lineHeight:1.8, paddingLeft:6 };
+  const h: React.CSSProperties = { fontSize:16, fontWeight:800, color:'var(--text)', margin:'0 0 14px', display:'flex', alignItems:'center', gap:8 };
+  const sub: React.CSSProperties = { fontSize:14, fontWeight:700, color:'var(--text)', margin:'14px 0 6px' };
+  const p: React.CSSProperties = { fontSize:13, color:'var(--text-3)', lineHeight:1.7, margin:'0 0 6px' };
+  const itemTitle: React.CSSProperties = { fontSize:13.5, fontWeight:700, color:'var(--text)', margin:'10px 0 4px', display:'flex', alignItems:'center', gap:6 };
+  const ul: React.CSSProperties = { margin:'0 0 4px', paddingLeft:24, color:'var(--text)', fontSize:13, lineHeight:1.8 };
+  const tip: React.CSSProperties = { fontSize:12.5, color:'var(--text-3)', background:'var(--surface-2)', borderRadius:10, padding:'8px 12px', marginTop:12, lineHeight:1.6 };
 
   return (
     <div>
@@ -531,65 +534,137 @@ function HelpPage({ onBack }: { onBack: () => void }) {
         <h2 style={{ fontSize:17, fontWeight:800, color:'var(--text)', margin:0, position:'absolute', left:'50%', transform:'translateX(-50%)' }}>使用說明</h2>
       </div>
 
+      {/* 新增食材 */}
       <div style={section}>
         <h3 style={h}>📦 新增食材</h3>
-        <p style={p}>右下角紫色 <strong>＋</strong> 按鈕可選擇三種新增方式：</p>
-        <ul style={{ margin:0, paddingLeft:20 }}>
-          <li style={li}><strong>手動輸入</strong>：搜尋食材庫或直接輸入新名稱</li>
-          <li style={li}><strong>影像辨識</strong>：拍照或從相簿選圖，AI 自動辨識</li>
-          <li style={li}><strong>條碼掃描</strong>：對準條碼自動查詢商品</li>
+        <p style={p}>點擊右下角 <strong>＋</strong> 新增按鈕，可選擇：</p>
+
+        <div style={itemTitle}>✍️ 手動輸入</div>
+        <ul style={ul}>
+          <li>搜尋現有食材庫</li>
+          <li>自行輸入新食材名稱</li>
         </ul>
-        <p style={{ ...p, marginTop:10 }}>未填寫的分類與到期日會由 AI 自動推測。</p>
+
+        <div style={itemTitle}>📷 影像辨識</div>
+        <ul style={ul}>
+          <li>直接拍照</li>
+          <li>從相簿選擇照片</li>
+          <li>AI 自動辨識食材</li>
+        </ul>
+
+        <div style={itemTitle}>📱 條碼掃描</div>
+        <ul style={ul}>
+          <li>對準商品條碼</li>
+          <li>自動查詢商品資訊</li>
+        </ul>
+
+        <div style={tip}>💡 未填寫的分類與到期日，系統會自動推測。</div>
       </div>
 
+      {/* 食材管理 */}
       <div style={section}>
         <h3 style={h}>🗂️ 食材管理</h3>
-        <ul style={{ margin:0, paddingLeft:20 }}>
-          <li style={li}>上方分類 chip 可篩選顯示</li>
-          <li style={li}>右上 🔍 搜尋、⊞ ☰ 切換網格／列表、✓ 進入多選</li>
-          <li style={li}><strong>長按</strong>食材也可進入多選模式</li>
-          <li style={li}>多選後可批次刪除或一鍵加入採買清單</li>
+
+        <div style={sub}>分類篩選</div>
+        <p style={p}>點擊上方分類標籤快速查看不同類型食材。</p>
+
+        <div style={sub}>功能按鈕</div>
+        <ul style={ul}>
+          <li>🔍 搜尋食材</li>
+          <li>⊞／☰ 切換網格或列表顯示</li>
+          <li>✓ 多選模式</li>
+        </ul>
+
+        <div style={sub}>多選操作</div>
+        <ul style={ul}>
+          <li>點擊 ✓ 或長按食材進入多選</li>
+          <li>批次刪除</li>
+          <li>批次加入採買清單</li>
         </ul>
       </div>
 
+      {/* 到期狀態 */}
       <div style={section}>
-        <h3 style={h}>🟢 🟡 🔴 到期色彩</h3>
-        <ul style={{ margin:0, paddingLeft:20 }}>
-          <li style={li}><span style={{ color:'#22c55e', fontWeight:700 }}>綠色</span>：保存充足（剩 3 天以上）</li>
-          <li style={li}><span style={{ color:'#eab308', fontWeight:700 }}>黃色</span>：即將到期（今天 ~ 剩 2 天）</li>
-          <li style={li}><span style={{ color:'#ef4444', fontWeight:700 }}>紅色</span>：已過期</li>
-        </ul>
+        <h3 style={h}>🟢🟡🔴 到期狀態</h3>
+        <div style={{ display:'grid', gridTemplateColumns:'auto 1fr', gap:'8px 16px', fontSize:13.5 }}>
+          <div style={{ fontWeight:700 }}>顏色</div>
+          <div style={{ fontWeight:700 }}>狀態</div>
+          <div style={{ color:'#22c55e', fontWeight:700 }}>🟢 綠色</div>
+          <div>剩餘 3 天以上</div>
+          <div style={{ color:'#eab308', fontWeight:700 }}>🟡 黃色</div>
+          <div>今天～剩餘 2 天</div>
+          <div style={{ color:'#ef4444', fontWeight:700 }}>🔴 紅色</div>
+          <div>已過期</div>
+        </div>
       </div>
 
+      {/* AI 食譜推薦 */}
       <div style={section}>
         <h3 style={h}>🍴 AI 食譜推薦</h3>
-        <p style={p}>進入「食譜」分頁，AI 依冰箱現有食材自動產生 4 道家常料理：</p>
-        <ul style={{ margin:0, paddingLeft:20 }}>
-          <li style={li}>優先使用快過期食材</li>
-          <li style={li}>排除已過期食材</li>
-          <li style={li}>點卡片可展開完整食材、調味、步驟、份量</li>
-          <li style={li}>右上「重新推薦」可重新生成</li>
+        <p style={p}>進入「食譜」分頁後，系統會依據冰箱現有食材推薦料理。</p>
+
+        <div style={sub}>功能特色</div>
+        <ul style={ul}>
+          <li>優先使用即將到期食材</li>
+          <li>自動排除過期食材</li>
+          <li>每次推薦 4 道料理</li>
+          <li>可重新生成推薦結果</li>
+        </ul>
+
+        <div style={sub}>查看食譜</div>
+        <p style={p}>點擊料理卡片即可查看：</p>
+        <ul style={ul}>
+          <li>食材清單</li>
+          <li>調味料</li>
+          <li>烹飪步驟</li>
+          <li>建議份量</li>
         </ul>
       </div>
 
+      {/* 採買清單 */}
       <div style={section}>
         <h3 style={h}>🛒 採買清單</h3>
-        <ul style={{ margin:0, paddingLeft:20 }}>
-          <li style={li}>右上購物車 icon 進入</li>
-          <li style={li}>底部輸入欄手動加入；缺貨食材可一鍵全部加入</li>
-          <li style={li}>點食材會劃線並沉到下方</li>
-          <li style={li}>多選後可一鍵<strong>加入冰箱</strong>，自動套用保存期限</li>
+
+        <div style={sub}>新增採買項目</div>
+        <ul style={ul}>
+          <li>底部輸入欄手動新增</li>
+          <li>缺貨食材一鍵全部加入</li>
+        </ul>
+
+        <div style={sub}>採買完成</div>
+        <ul style={ul}>
+          <li>點擊項目即可標記完成</li>
+          <li>已完成項目會自動移至下方</li>
+        </ul>
+
+        <div style={sub}>快速補貨</div>
+        <p style={p}>多選商品後可：</p>
+        <ul style={ul}>
+          <li>一鍵加入冰箱</li>
+          <li>自動套用預設保存期限</li>
         </ul>
       </div>
 
+      {/* 到期提醒 */}
       <div style={section}>
-        <h3 style={h}>🔔 到期提醒推播</h3>
-        <p style={p}>於「通知」設定開啟後，食材即將到期時瀏覽器會主動推送通知，即使關閉 App 仍能收到。</p>
+        <h3 style={h}>🔔 到期提醒</h3>
+        <p style={p}>開啟通知功能後：</p>
+        <ul style={ul}>
+          <li>食材即將到期時自動提醒</li>
+          <li>即使未開啟冰箱管家也能收到通知</li>
+          <li>可於設定頁調整提醒天數</li>
+        </ul>
       </div>
 
+      {/* 深色模式 */}
       <div style={section}>
         <h3 style={h}>🌙 深色模式</h3>
-        <p style={p}>於設定頁可切換深色／淺色主題，偏好會自動保存。</p>
+        <p style={p}>可於設定頁切換：</p>
+        <ul style={ul}>
+          <li>☀️ 淺色模式</li>
+          <li>🌙 深色模式</li>
+        </ul>
+        <div style={tip}>系統會自動記住您的偏好設定。</div>
       </div>
 
     </div>

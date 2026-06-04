@@ -748,6 +748,20 @@ export default function DashboardPage({ user, onLogout }: Props) {
   const [batchStockConfirm, setBatchStockConfirm] = useState(false);
   const [activeNav, setActiveNav] = useState<'home'|'inventory'|'settings'|'cart'>('inventory');
   const [prevNav, setPrevNav] = useState<'home'|'inventory'|'settings'>('inventory');
+
+  // 切離食材頁時自動退出多選模式
+  useEffect(() => {
+    if (activeNav !== 'inventory' && selectionMode) {
+      setSelectionMode(false);
+      setSelectedIds(new Set());
+    }
+    // 切離採買頁時退出採買多選模式
+    if (activeNav !== 'cart' && cartSelectionMode) {
+      setCartSelectionMode(false);
+      setCartSelected(new Set());
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeNav]);
   const goCart = () => { if (activeNav !== 'cart') { setPrevNav(activeNav as 'home'|'inventory'|'settings'); setCartSelectionMode(false); setCartSelected(new Set()); } setActiveNav('cart'); };
   const backFromCart = () => setActiveNav(prevNav);
   const [cartItems, setCartItems] = useState<{id:number;name:string;done:boolean;quantity:number;ingredient_id?:number;source?:'outofstock'|'manual'}[]>(() => {

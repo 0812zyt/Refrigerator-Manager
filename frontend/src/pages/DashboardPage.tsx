@@ -550,7 +550,7 @@ function AccordionItem({ icon, title, isOpen, onToggle, image, children }: {
 }
 
 function HelpPage({ onBack }: { onBack: () => void }) {
-  const [open, setOpen] = useState<string | null>('add');
+  const [open, setOpen] = useState<string | null>(null);
   const toggle = (id: string) => setOpen(open === id ? null : id);
 
   const sub: React.CSSProperties = { fontSize:14, fontWeight:700, color:'var(--text)', margin:'14px 0 6px' };

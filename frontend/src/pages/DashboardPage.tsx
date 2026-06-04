@@ -713,17 +713,10 @@ export default function DashboardPage({ user, onLogout }: Props) {
     exitSelection();
   };
   const deleteSelected = async () => {
-    const ids = [...selectedIds];
-    const results = await Promise.allSettled(ids.map(id => deleteInventory(id)));
-    const failed = results.filter(r => r.status === 'rejected').length;
+    await Promise.allSettled([...selectedIds].map(id => deleteInventory(id)));
     setMultiDeleteConfirm(false);
     exitSelection();
     loadData();
-    if (failed > 0) {
-      showToast(`已刪除 ${ids.length - failed} 項，${failed} 項失敗`);
-    } else {
-      showToast(`已刪除 ${ids.length} 項`);
-    }
   };
   const batchStockAll = async () => {
     const doneItems = cartItems.filter(i => cartSelected.has(i.id));

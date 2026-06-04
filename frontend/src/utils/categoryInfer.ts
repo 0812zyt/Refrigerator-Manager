@@ -111,31 +111,18 @@ function findCategory(catName: string, categories: Category[]): Category | null 
   return null;
 }
 
-export async function inferCategory(name: string, categories: Category[]): Promise<Category | null> {
-  if (!name || categories.length === 0) return null;
+// 判斷是否為「商品全名」（多字、含空格或長度過長）
+// 例：「Extra Apple Lime Flavored Gum」就算含 "apple" 也不該歸 Fruits
+function isProductName(name: string): boolean {
+  const wordCount = name.trim().split(/\s+/).length;
+  return wordCount >= 3 || name.length > 12;
+}
 
-  const lower = name.toLowerCase();
-
-  // 1. Exact key match
-  const exactKey = NAME_TO_CATEGORY[name] ?? NAME_TO_CATEGORY[lower];
-  if (exactKey) {
-    const cat = findCategory(exactKey, categories);
-    if (cat) return cat;
-  }
-
-  // 2. Substring match (e.g. "新鮮鳳梨" → "鳳梨")
-  for (const [key, catName] of Object.entries(NAME_TO_CATEGORY)) {
-    if (key.length >= 2 && (name.includes(key) || lower.includes(key.toLowerCase()))) {
-      const cat = findCategory(catName, categories);
-      if (cat) return cat;
-    }
-  }
-
-  // 3. Groq fallback
+async function askGroq(name: string, categories: Category[]): Promise<Category | null> {
   if (!GROQ_KEY) return null;
   try {
     const catNames = categories.map(c => c.category_name).join('、');
-    const prompt = `你是食材分類助手。可用類別：${catNames}\n請幫食材「${name}」選一個最合適的類別，只回傳類別名稱，不要其他說明。`;
+    const prompt = `你是食材分類助手。可用類別：${catNames}\n請幫食材「${name}」選一個最合適的類別，只回傳類別名稱，不要其他說明。零食、糖果、口香糖等加工食品請歸為「其他」或「Others」。`;
     const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROQ_KEY}` },
@@ -152,4 +139,34 @@ export async function inferCategory(name: string, categories: Category[]): Promi
   } catch {
     return null;
   }
+}
+
+export async function inferCategory(name: string, categories: Category[]): Promise<Category | null> {
+  if (!name || categories.length === 0) return null;
+
+  const lower = name.toLowerCase();
+
+  // 1. Exact key match
+  const exactKey = NAME_TO_CATEGORY[name] ?? NAME_TO_CATEGORY[lower];
+  if (exactKey) {
+    const cat = findCategory(exactKey, categories);
+    if (cat) return cat;
+  }
+
+  // 商品全名直接交給 LLM 判斷，避免 "Extra Apple ... Gum" 被誤判為 Fruits
+  if (isProductName(name)) {
+    const aiCat = await askGroq(name, categories);
+    if (aiCat) return aiCat;
+  }
+
+  // 2. Substring match（適用於「新鮮鳳梨」等簡短食材名）
+  for (const [key, catName] of Object.entries(NAME_TO_CATEGORY)) {
+    if (key.length >= 2 && (name.includes(key) || lower.includes(key.toLowerCase()))) {
+      const cat = findCategory(catName, categories);
+      if (cat) return cat;
+    }
+  }
+
+  // 3. Groq fallback
+  return askGroq(name, categories);
 }

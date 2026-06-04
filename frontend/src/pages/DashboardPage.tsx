@@ -1034,12 +1034,19 @@ export default function DashboardPage({ user, onLogout }: Props) {
       )}
       {selectionMode && (
         <div style={{ position:'fixed', bottom:64, left:0, right:0, zIndex:120, background:'var(--surface)', borderTop:'1px solid var(--border)', padding:'12px 16px', display:'flex', gap:10, boxShadow:'0 -4px 20px rgba(0,0,0,0.12)' }}>
-          <button onClick={addSelectedToCart}
-            style={{ flex:1, padding:'13px 0', borderRadius:12, border:'none', background:'linear-gradient(135deg,#6366f1,#8b5cf6)', color:'#fff', fontWeight:700, fontSize:14, cursor:'pointer' }}>
-            <i className="fi fi-br-shopping-cart" style={{ fontSize:15, color:'#fff', lineHeight:1 }} /> 加入採買清單
+          <button onClick={() => {
+            const allSel = selectedIds.size === filtered.length;
+            setSelectedIds(allSel ? new Set() : new Set(filtered.map(i => i.inventory_id)));
+          }}
+            style={{ flex:1, padding:'13px 0', borderRadius:12, border:'1px solid var(--border)', background:'var(--surface-2)', color:'var(--text)', fontWeight:700, fontSize:14, cursor:'pointer' }}>
+            {selectedIds.size === filtered.length && filtered.length > 0 ? '取消全選' : '全選'}
           </button>
-          <button onClick={() => setMultiDeleteConfirm(true)}
-            style={{ flex:1, padding:'13px 0', borderRadius:12, border:'none', background:'#ef4444', color:'#fff', fontWeight:700, fontSize:14, cursor:'pointer' }}>
+          <button onClick={addSelectedToCart} disabled={selectedIds.size === 0}
+            style={{ flex:1, padding:'13px 0', borderRadius:12, border:'none', background: selectedIds.size > 0 ? 'linear-gradient(135deg,#6366f1,#8b5cf6)' : 'var(--surface-2)', color: selectedIds.size > 0 ? '#fff' : 'var(--text-3)', fontWeight:700, fontSize:14, cursor: selectedIds.size > 0 ? 'pointer' : 'not-allowed' }}>
+            <i className="fi fi-br-shopping-cart" style={{ fontSize:15, lineHeight:1 }} /> 加入採買清單
+          </button>
+          <button onClick={() => setMultiDeleteConfirm(true)} disabled={selectedIds.size === 0}
+            style={{ flex:1, padding:'13px 0', borderRadius:12, border:'none', background: selectedIds.size > 0 ? '#ef4444' : 'var(--surface-2)', color: selectedIds.size > 0 ? '#fff' : 'var(--text-3)', fontWeight:700, fontSize:14, cursor: selectedIds.size > 0 ? 'pointer' : 'not-allowed' }}>
             🗑 移除商品
           </button>
         </div>

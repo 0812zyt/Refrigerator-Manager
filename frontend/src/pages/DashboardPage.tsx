@@ -592,10 +592,6 @@ function HelpPage({ onBack }: { onBack: () => void }) {
         <p style={p}>於設定頁可切換深色／淺色主題，偏好會自動保存。</p>
       </div>
 
-      <div style={section}>
-        <h3 style={h}>🧊 冰箱觸控面板</h3>
-        <p style={p}>於 480×320 橫向螢幕（冰箱觸控面板）開啟時，自動切換為簡化模式：兩個大按鈕（影像辨識 / 條碼掃描），辨識完直接入庫，無需任何文字輸入。</p>
-      </div>
     </div>
   );
 }

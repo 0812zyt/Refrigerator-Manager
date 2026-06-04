@@ -518,9 +518,41 @@ function NotifSettingsPage({ user, onBack }: { user: User; onBack: () => void })
 }
 
 // ── Settings View ─────────────────────────────────────────────────
+// Help 圖片資料夾：放於 frontend/public/help/ 後直接以 /help/xxx.png 引用
+function AccordionItem({ icon, title, isOpen, onToggle, image, children }: {
+  icon: string;
+  title: string;
+  isOpen: boolean;
+  onToggle: () => void;
+  image?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div style={{ background:'var(--surface)', borderRadius:16, boxShadow:'var(--shadow)', marginBottom:12, overflow:'hidden' }}>
+      <button onClick={onToggle}
+        style={{ display:'flex', alignItems:'center', gap:12, width:'100%', padding:'16px 18px', background:'none', border:'none', cursor:'pointer', textAlign:'left' }}>
+        <span style={{ fontSize:22, lineHeight:1 }}>{icon}</span>
+        <span style={{ flex:1, fontSize:15, fontWeight:800, color:'var(--text)' }}>{title}</span>
+        <span style={{ fontSize:13, color:'var(--text-3)', transition:'transform 0.2s', transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
+      </button>
+      <div style={{ maxHeight: isOpen ? 9999 : 0, overflow:'hidden', transition:'max-height 0.25s ease' }}>
+        <div style={{ padding:'0 18px 18px' }}>
+          {image && (
+            <img src={image} alt={title}
+              style={{ width:'100%', borderRadius:12, marginBottom:14, display:'block', background:'var(--surface-2)' }}
+              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+          )}
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function HelpPage({ onBack }: { onBack: () => void }) {
-  const section: React.CSSProperties = { background:'var(--surface)', borderRadius:16, padding:'18px 18px', boxShadow:'var(--shadow)', marginBottom:14 };
-  const h: React.CSSProperties = { fontSize:16, fontWeight:800, color:'var(--text)', margin:'0 0 14px', display:'flex', alignItems:'center', gap:8 };
+  const [open, setOpen] = useState<string | null>('add');
+  const toggle = (id: string) => setOpen(open === id ? null : id);
+
   const sub: React.CSSProperties = { fontSize:14, fontWeight:700, color:'var(--text)', margin:'14px 0 6px' };
   const p: React.CSSProperties = { fontSize:13, color:'var(--text-3)', lineHeight:1.7, margin:'0 0 6px' };
   const itemTitle: React.CSSProperties = { fontSize:13.5, fontWeight:700, color:'var(--text)', margin:'10px 0 4px', display:'flex', alignItems:'center', gap:6 };
@@ -529,63 +561,50 @@ function HelpPage({ onBack }: { onBack: () => void }) {
 
   return (
     <div>
-      <div style={{ display:'flex', alignItems:'center', marginBottom:24, position:'relative' }}>
+      <div style={{ display:'flex', alignItems:'center', marginBottom:20, position:'relative' }}>
         <button onClick={onBack} style={{ width:34, height:34, borderRadius:10, border:'1px solid var(--border)', background:'var(--surface)', cursor:'pointer', fontSize:16, display:'flex', alignItems:'center', justifyContent:'center' }}>←</button>
         <h2 style={{ fontSize:17, fontWeight:800, color:'var(--text)', margin:0, position:'absolute', left:'50%', transform:'translateX(-50%)' }}>使用說明</h2>
       </div>
 
-      {/* 新增食材 */}
-      <div style={section}>
-        <h3 style={h}>📦 新增食材</h3>
+      <AccordionItem icon="📦" title="新增食材" isOpen={open === 'add'} onToggle={() => toggle('add')} image="/help/01-add.png">
         <p style={p}>點擊右下角 <strong>＋</strong> 新增按鈕，可選擇：</p>
-
         <div style={itemTitle}>✍️ 手動輸入</div>
         <ul style={ul}>
           <li>搜尋現有食材庫</li>
           <li>自行輸入新食材名稱</li>
         </ul>
-
         <div style={itemTitle}>📷 影像辨識</div>
         <ul style={ul}>
           <li>直接拍照</li>
           <li>從相簿選擇照片</li>
           <li>AI 自動辨識食材</li>
         </ul>
-
         <div style={itemTitle}>📱 條碼掃描</div>
         <ul style={ul}>
           <li>對準商品條碼</li>
           <li>自動查詢商品資訊</li>
         </ul>
-
         <div style={tip}>💡 未填寫的分類與到期日，系統會自動推測。</div>
-      </div>
+      </AccordionItem>
 
-      {/* 食材管理 */}
-      <div style={section}>
-        <h3 style={h}>🗂️ 食材管理</h3>
-
+      <AccordionItem icon="🗂️" title="食材管理" isOpen={open === 'manage'} onToggle={() => toggle('manage')} image="/help/02-manage.png">
         <div style={sub}>分類篩選</div>
         <p style={p}>點擊上方分類標籤快速查看不同類型食材。</p>
-
         <div style={sub}>功能按鈕</div>
         <ul style={ul}>
           <li>🔍 搜尋食材</li>
           <li>⊞／☰ 切換網格或列表顯示</li>
           <li>✓ 多選模式</li>
         </ul>
-
         <div style={sub}>多選操作</div>
         <ul style={ul}>
           <li>點擊 ✓ 或長按食材進入多選</li>
           <li>批次刪除</li>
           <li>批次加入採買清單</li>
         </ul>
-      </div>
+      </AccordionItem>
 
-      {/* 到期狀態 */}
-      <div style={section}>
-        <h3 style={h}>🟢🟡🔴 到期狀態</h3>
+      <AccordionItem icon="🟢" title="到期狀態" isOpen={open === 'expiry'} onToggle={() => toggle('expiry')} image="/help/03-expiry.png">
         <div style={{ display:'grid', gridTemplateColumns:'auto 1fr', gap:'8px 16px', fontSize:13.5 }}>
           <div style={{ fontWeight:700 }}>顏色</div>
           <div style={{ fontWeight:700 }}>狀態</div>
@@ -596,13 +615,10 @@ function HelpPage({ onBack }: { onBack: () => void }) {
           <div style={{ color:'#ef4444', fontWeight:700 }}>🔴 紅色</div>
           <div>已過期</div>
         </div>
-      </div>
+      </AccordionItem>
 
-      {/* AI 食譜推薦 */}
-      <div style={section}>
-        <h3 style={h}>🍴 AI 食譜推薦</h3>
+      <AccordionItem icon="🍴" title="AI 食譜推薦" isOpen={open === 'recipe'} onToggle={() => toggle('recipe')} image="/help/04-recipe.png">
         <p style={p}>進入「食譜」分頁後，系統會依據冰箱現有食材推薦料理。</p>
-
         <div style={sub}>功能特色</div>
         <ul style={ul}>
           <li>優先使用即將到期食材</li>
@@ -610,7 +626,6 @@ function HelpPage({ onBack }: { onBack: () => void }) {
           <li>每次推薦 4 道料理</li>
           <li>可重新生成推薦結果</li>
         </ul>
-
         <div style={sub}>查看食譜</div>
         <p style={p}>點擊料理卡片即可查看：</p>
         <ul style={ul}>
@@ -619,53 +634,44 @@ function HelpPage({ onBack }: { onBack: () => void }) {
           <li>烹飪步驟</li>
           <li>建議份量</li>
         </ul>
-      </div>
+      </AccordionItem>
 
-      {/* 採買清單 */}
-      <div style={section}>
-        <h3 style={h}>🛒 採買清單</h3>
-
+      <AccordionItem icon="🛒" title="採買清單" isOpen={open === 'cart'} onToggle={() => toggle('cart')} image="/help/05-cart.png">
         <div style={sub}>新增採買項目</div>
         <ul style={ul}>
           <li>底部輸入欄手動新增</li>
           <li>缺貨食材一鍵全部加入</li>
         </ul>
-
         <div style={sub}>採買完成</div>
         <ul style={ul}>
           <li>點擊項目即可標記完成</li>
           <li>已完成項目會自動移至下方</li>
         </ul>
-
         <div style={sub}>快速補貨</div>
         <p style={p}>多選商品後可：</p>
         <ul style={ul}>
           <li>一鍵加入冰箱</li>
           <li>自動套用預設保存期限</li>
         </ul>
-      </div>
+      </AccordionItem>
 
-      {/* 到期提醒 */}
-      <div style={section}>
-        <h3 style={h}>🔔 到期提醒</h3>
+      <AccordionItem icon="🔔" title="到期提醒" isOpen={open === 'notif'} onToggle={() => toggle('notif')} image="/help/06-notif.png">
         <p style={p}>開啟通知功能後：</p>
         <ul style={ul}>
           <li>食材即將到期時自動提醒</li>
           <li>即使未開啟冰箱管家也能收到通知</li>
           <li>可於設定頁調整提醒天數</li>
         </ul>
-      </div>
+      </AccordionItem>
 
-      {/* 深色模式 */}
-      <div style={section}>
-        <h3 style={h}>🌙 深色模式</h3>
+      <AccordionItem icon="🌙" title="深色模式" isOpen={open === 'theme'} onToggle={() => toggle('theme')} image="/help/07-theme.png">
         <p style={p}>可於設定頁切換：</p>
         <ul style={ul}>
           <li>☀️ 淺色模式</li>
           <li>🌙 深色模式</li>
         </ul>
         <div style={tip}>系統會自動記住您的偏好設定。</div>
-      </div>
+      </AccordionItem>
 
     </div>
   );

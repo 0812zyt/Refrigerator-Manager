@@ -518,9 +518,91 @@ function NotifSettingsPage({ user, onBack }: { user: User; onBack: () => void })
 }
 
 // ── Settings View ─────────────────────────────────────────────────
+function HelpPage({ onBack }: { onBack: () => void }) {
+  const section: React.CSSProperties = { background:'var(--surface)', borderRadius:16, padding:'18px 18px', boxShadow:'var(--shadow)', marginBottom:14 };
+  const h: React.CSSProperties = { fontSize:15, fontWeight:800, color:'var(--text)', margin:'0 0 10px', display:'flex', alignItems:'center', gap:8 };
+  const p: React.CSSProperties = { fontSize:13, color:'var(--text-3)', lineHeight:1.7, margin:'0 0 8px' };
+  const li: React.CSSProperties = { fontSize:13, color:'var(--text)', lineHeight:1.8, paddingLeft:6 };
+
+  return (
+    <div>
+      <div style={{ display:'flex', alignItems:'center', marginBottom:24, position:'relative' }}>
+        <button onClick={onBack} style={{ width:34, height:34, borderRadius:10, border:'1px solid var(--border)', background:'var(--surface)', cursor:'pointer', fontSize:16, display:'flex', alignItems:'center', justifyContent:'center' }}>←</button>
+        <h2 style={{ fontSize:17, fontWeight:800, color:'var(--text)', margin:0, position:'absolute', left:'50%', transform:'translateX(-50%)' }}>使用說明</h2>
+      </div>
+
+      <div style={section}>
+        <h3 style={h}>📦 新增食材</h3>
+        <p style={p}>右下角紫色 <strong>＋</strong> 按鈕可選擇三種新增方式：</p>
+        <ul style={{ margin:0, paddingLeft:20 }}>
+          <li style={li}><strong>手動輸入</strong>：搜尋食材庫或直接輸入新名稱</li>
+          <li style={li}><strong>影像辨識</strong>：拍照或從相簿選圖，AI 自動辨識</li>
+          <li style={li}><strong>條碼掃描</strong>：對準條碼自動查詢商品</li>
+        </ul>
+        <p style={{ ...p, marginTop:10 }}>未填寫的分類與到期日會由 AI 自動推測。</p>
+      </div>
+
+      <div style={section}>
+        <h3 style={h}>🗂️ 食材管理</h3>
+        <ul style={{ margin:0, paddingLeft:20 }}>
+          <li style={li}>上方分類 chip 可篩選顯示</li>
+          <li style={li}>右上 🔍 搜尋、⊞ ☰ 切換網格／列表、✓ 進入多選</li>
+          <li style={li}><strong>長按</strong>食材也可進入多選模式</li>
+          <li style={li}>多選後可批次刪除或一鍵加入採買清單</li>
+        </ul>
+      </div>
+
+      <div style={section}>
+        <h3 style={h}>🟢 🟡 🔴 到期色彩</h3>
+        <ul style={{ margin:0, paddingLeft:20 }}>
+          <li style={li}><span style={{ color:'#22c55e', fontWeight:700 }}>綠色</span>：保存充足（剩 3 天以上）</li>
+          <li style={li}><span style={{ color:'#eab308', fontWeight:700 }}>黃色</span>：即將到期（今天 ~ 剩 2 天）</li>
+          <li style={li}><span style={{ color:'#ef4444', fontWeight:700 }}>紅色</span>：已過期</li>
+        </ul>
+      </div>
+
+      <div style={section}>
+        <h3 style={h}>🍴 AI 食譜推薦</h3>
+        <p style={p}>進入「食譜」分頁，AI 依冰箱現有食材自動產生 4 道家常料理：</p>
+        <ul style={{ margin:0, paddingLeft:20 }}>
+          <li style={li}>優先使用快過期食材</li>
+          <li style={li}>排除已過期食材</li>
+          <li style={li}>點卡片可展開完整食材、調味、步驟、份量</li>
+          <li style={li}>右上「重新推薦」可重新生成</li>
+        </ul>
+      </div>
+
+      <div style={section}>
+        <h3 style={h}>🛒 採買清單</h3>
+        <ul style={{ margin:0, paddingLeft:20 }}>
+          <li style={li}>右上購物車 icon 進入</li>
+          <li style={li}>底部輸入欄手動加入；缺貨食材可一鍵全部加入</li>
+          <li style={li}>點食材會劃線並沉到下方</li>
+          <li style={li}>多選後可一鍵<strong>加入冰箱</strong>，自動套用保存期限</li>
+        </ul>
+      </div>
+
+      <div style={section}>
+        <h3 style={h}>🔔 到期提醒推播</h3>
+        <p style={p}>於「通知」設定開啟後，食材即將到期時瀏覽器會主動推送通知，即使關閉 App 仍能收到。</p>
+      </div>
+
+      <div style={section}>
+        <h3 style={h}>🌙 深色模式</h3>
+        <p style={p}>於設定頁可切換深色／淺色主題，偏好會自動保存。</p>
+      </div>
+
+      <div style={section}>
+        <h3 style={h}>🧊 冰箱觸控面板</h3>
+        <p style={p}>於 480×320 橫向螢幕（冰箱觸控面板）開啟時，自動切換為簡化模式：兩個大按鈕（影像辨識 / 條碼掃描），辨識完直接入庫，無需任何文字輸入。</p>
+      </div>
+    </div>
+  );
+}
+
 function SettingsView({ user, onLogout }: { user: User; onLogout: () => void }) {
   const { theme, setTheme } = useTheme();
-  const [subPage, setSubPage] = useState<null | 'notif'>(null);
+  const [subPage, setSubPage] = useState<null | 'notif' | 'help'>(null);
 
   const row = (icon: string, label: string, right?: React.ReactNode, onClick?: () => void) => (
     <button onClick={onClick} style={{ display:'flex', alignItems:'center', gap:14, width:'100%', padding:'14px 18px', background:'none', border:'none', cursor: onClick ? 'pointer' : 'default', textAlign:'left' }}>
@@ -537,6 +619,7 @@ function SettingsView({ user, onLogout }: { user: User; onLogout: () => void }) 
   );
 
   if (subPage === 'notif') return <NotifSettingsPage user={user} onBack={() => setSubPage(null)} />;
+  if (subPage === 'help') return <HelpPage onBack={() => setSubPage(null)} />;
 
   return (
     <div>
@@ -554,6 +637,8 @@ function SettingsView({ user, onLogout }: { user: User; onLogout: () => void }) 
         {row(theme === 'dark' ? '☀️' : '🌙', '深色模式', toggle(theme === 'dark'), () => setTheme(theme === 'dark' ? 'light' : 'dark'))}
         <div style={{ height:1, background:'var(--border)', margin:'0 18px' }} />
         {row('🔔', '通知', <span style={{ fontSize:13, color:'var(--text-3)' }}>›</span>, () => setSubPage('notif'))}
+        <div style={{ height:1, background:'var(--border)', margin:'0 18px' }} />
+        {row('📖', '使用說明', <span style={{ fontSize:13, color:'var(--text-3)' }}>›</span>, () => setSubPage('help'))}
       </div>
 
       <div style={{ background:'var(--surface)', borderRadius:16, overflow:'hidden', boxShadow:'var(--shadow)' }}>
